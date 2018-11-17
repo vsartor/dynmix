@@ -64,3 +64,26 @@ def dlm_filter(Y, F, G, V, W, m0 = None, C0 = None):
         C[t] = R[t] - np.dot(np.dot(A, Q[t]), A.T)
 
     return a, R, f, Q, m, C
+
+
+def dlm_smoother(G, a, R, m, C):
+    '''
+    Peforms basic Kalman smoothing for a Dynamic Linear Model.
+    Relies on the correct outputs of `dlm_filter`.
+    '''
+    T, p = m.shape
+    Gt = G.T
+
+    s = np.empty((T, p))
+    S = np.empty((T, p, p))
+
+    s[T-1] = m[T-1]
+    S[T-1] = C[T-1]
+
+    for t in range(T-2, -1, -1):
+        Rinv = np.linalg.inv(R[t+1])
+        B = np.dot(np.dot(C[t], Gt), Rinv)
+        s[t] = m[t] + np.dot(B, s[t+1] - a[t+1])
+        S[t] = C[t] - np.dot(np.dot(B, R[t+1] - S[t+1]), B.T)
+    
+    return s, S
