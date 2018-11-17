@@ -6,3 +6,4 @@ Changelog
 - Added dirichlet.py file with forward filtering and backwards sampling
   algorithms for a Dirichlet process from Fonseca & Ferreira (2017)
   including test suite
+- Added dlm.py file with basic DLM filtering
