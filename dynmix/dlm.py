@@ -63,4 +63,4 @@ def dlm_filter(Y, F, G, V, W, m0 = None, C0 = None):
         m[t] = a[t] + np.dot(A, e)
         C[t] = R[t] - np.dot(np.dot(A, Q[t]), A.T)
 
-    return m, C, a, R, f, Q
+    return a, R, f, Q, m, C
