@@ -66,6 +66,70 @@ def dlm_filter(Y, F, G, V, W, m0 = None, C0 = None):
     return a, R, f, Q, m, C
 
 
+def dlm_multi_filter(Y, F, G, V, W, m0 = None, C0 = None):
+    '''
+    Peforms filtering for univariate observational specifications
+    considering multiple 'samples' from the observational variable
+    at each time.
+
+    Args:
+        Y: A list with the vector of observations for each time.
+        F: The vector that specifies the univariate behavior.
+        G: The usual evolutional matrix.
+        V: The observational variance for an univariate observation.
+        W: The usual evolutional error covariance matrix.
+        m0: The usual prior mean for the states. Defaults to zeros.
+        C0: The usual prior covariance for the states. Defaults to a
+            diagonal matrix with entrances equal to 10**6.
+    
+    Returns:
+        The matrices a and R, containing prior means and covariances
+        and the matrices m and C, containing online means and
+        covariances, respectively.
+    '''
+    
+    p = F.size
+    T = len(Y)
+    Gt = G.T
+
+    if m0 is None:
+        m0 = np.zeros(p)
+    if C0 is None:
+        C0 = np.diag(np.ones(p)) * 10**6
+
+    a = np.empty((T, p))
+    R = np.empty((T, p, p))
+    m = np.empty((T, p))
+    C = np.empty((T, p, p))
+
+    n = Y[0].size
+    FF = np.tile(F, (n, 1))
+    a[0] = np.dot(G, m0)
+    R[0] = np.dot(np.dot(G, C0), Gt) + W
+    f = np.dot(FF, a[0])
+    Q = np.dot(np.dot(FF, R[0]), FF.T) + V * np.eye(n)
+    e = Y[0] - f
+    Qinv = np.linalg.inv(Q)
+    A = np.dot(np.dot(R[0], FF.T), Qinv)
+    m[0] = a[0] + np.dot(A, e)
+    C[0] = R[0] - np.dot(np.dot(A, Q), A.T)
+
+    for t in range(1, T):
+        n = Y[t].size
+        FF = np.tile(F, (n, 1))
+        a[t] = np.dot(G, m[t-1])
+        R[t] = np.dot(np.dot(G, C[t-1]), Gt) + W
+        f = np.dot(FF, a[t])
+        Q = np.dot(np.dot(FF, R[t]), FF.T) + V * np.eye(n)
+        e = Y[t] - f
+        Qinv = np.linalg.inv(Q)
+        A = np.dot(np.dot(R[t], FF.T), Qinv)
+        m[t] = a[t] + np.dot(A, e)
+        C[t] = R[t] - np.dot(np.dot(A, Q), A.T)
+
+    return a, R, m, C
+
+
 def dlm_smoother(G, a, R, m, C):
     '''
     Peforms basic Kalman smoothing for a Dynamic Linear Model.

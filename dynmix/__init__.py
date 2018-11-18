@@ -7,4 +7,4 @@ file, You can obtain one at http://mozilla.org/MPL/2.0/.
 '''
 
 from .dirichlet import dirichlet_forward_filter, dirichlet_backwards_sampler
-from .dlm import dlm_filter, dlm_smoother
+from .dlm import dlm_filter, dlm_multi_filter, dlm_smoother
