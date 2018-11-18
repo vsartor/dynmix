@@ -1,12 +1,14 @@
 '''
-Implements simple Dynamic Linear Model routines and also includes
-routines for "univariate" DLMs with varying repeated observations
-at each time instant.
+This module implements simple Dynamic Linear Model routines while
+also including routines a special case of "univariate" DLMs that
+have a varying number `n_t` of repeated observations of `y_t` at
+each time instant.
 
-Copyright (c) Victhor S. Sartório. All rights reserved.
-This Source Code Form is subject to the terms of the Mozilla Public
-License, v. 2.0. If a copy of the MPL was not distributed with this
-file, You can obtain one at http://mozilla.org/MPL/2.0/.
+Copyright notice:
+    Copyright (c) Victhor S. Sartório. All rights reserved. This
+    Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with
+    this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 '''
 
 import numpy as np
@@ -27,7 +29,7 @@ def dlm_filter(Y, F, G, V, W, m0 = None, C0 = None):
             matrix with entrances equal to 10**6.
     
     Returns:
-        Six arrays: the prior means and covariances, a and R, the one
+        Six arrays - the prior means and covariances, a and R, the one
         step ahead forecast means and covariances, f and R, and the
         online means and covariances, m and C.
     '''
@@ -97,7 +99,7 @@ def dlm_multi_filter(Y, F, G, V, W, m0 = None, C0 = None):
             diagonal matrix with entrances equal to 10**6.
     
     Returns:
-        Four matrices: the prior means and covariances, a and R, and
+        Four matrices - the prior means and covariances, a and R, and
         the online means and covariances, m and C.
     '''
     
@@ -155,7 +157,7 @@ def dlm_smoother(G, a, R, m, C):
         C: The online covariance matrices returned by the filtering step.
     
     Returns:
-        Two matrices: The posterior means and covariances, s and S.
+        Two matrices - the posterior means and covariances, s and S.
     '''
     T, p = m.shape
     Gt = G.T
