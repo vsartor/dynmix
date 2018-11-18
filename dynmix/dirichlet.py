@@ -15,6 +15,15 @@ def dirichlet_forward_filter(y, delta, c0):
     '''
     Performs forward filtering algorithm for a Dirichlet process as
     proposed in Fonseca & Ferreira (2017).
+
+    Args:
+        y: The matrix of observations from a multinomial distribution.
+        delta: The discount factor for the model.
+        c0: The prior knowledge about the Dirichlet process.
+    
+    Returns:
+        The matrix c containing parameters of the online distribution
+        of the Dirichlet states.
     '''
     n, k = y.shape
     c = np.empty((n, k))
@@ -28,6 +37,15 @@ def dirichlet_backwards_sampler(c, delta):
     '''
     Performs backwards sampling algorithm for a Dirichlet process as
     proposed in Fonseca & Ferreira (2017).
+
+    Args:
+        c: The online distribution parameters obtained from forward
+            filtering.
+        delta: The discount factor for the model.
+    
+    Returns:
+        A matrix containing samples from the posterior distribution
+        of the Dirichlet states.
     '''
     n = c.shape[0]
     omega = np.empty(c.shape)
