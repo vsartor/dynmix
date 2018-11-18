@@ -15,6 +15,21 @@ import numpy as np
 def dlm_filter(Y, F, G, V, W, m0 = None, C0 = None):
     '''
     Peforms the basic Kalman filter for a Dynamic Linear Model.
+
+    Args:
+        Y: The matrix of observations, with an observation in each row.
+        F: The observational matrix.
+        G: The evolutional matrix.
+        V: The observational error covariance matrix.
+        W: The evolutional error covariance matrix.
+        m0: The prior mean for the states. Defaults to zeros.
+        C0: The prior covariance for the states. Defaults to a diagonal
+            matrix with entrances equal to 10**6.
+    
+    Returns:
+        Six arrays: the prior means and covariances, a and R, the one
+        step ahead forecast means and covariances, f and R, and the
+        online means and covariances, m and C.
     '''
 
     T = Y.shape[0]
@@ -82,9 +97,8 @@ def dlm_multi_filter(Y, F, G, V, W, m0 = None, C0 = None):
             diagonal matrix with entrances equal to 10**6.
     
     Returns:
-        The matrices a and R, containing prior means and covariances
-        and the matrices m and C, containing online means and
-        covariances, respectively.
+        Four matrices: the prior means and covariances, a and R, and
+        the online means and covariances, m and C.
     '''
     
     p = F.size
@@ -132,7 +146,16 @@ def dlm_multi_filter(Y, F, G, V, W, m0 = None, C0 = None):
 def dlm_smoother(G, a, R, m, C):
     '''
     Peforms basic Kalman smoothing for a Dynamic Linear Model.
-    Relies on the correct outputs of `dlm_filter`.
+
+    Args:
+        G: The evolutional matrix.
+        a: The prior mean matrix returned by the filtering step.
+        R: The prior covariance matrices returned by the filtering step.
+        m: The online mean matrix returned by the filtering step.
+        C: The online covariance matrices returned by the filtering step.
+    
+    Returns:
+        Two matrices: The posterior means and covariances, s and S.
     '''
     T, p = m.shape
     Gt = G.T
