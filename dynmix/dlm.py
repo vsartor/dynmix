@@ -19,18 +19,20 @@ def dlm_filter(Y, F, G, V, W, m0 = None, C0 = None):
 
     T = Y.shape[0]
     n, p = F.shape
+    Gt = G.T
+    Ft = F.T
 
     if Y.shape[1] != n or V.shape[0] != n or V.shape[1] != n:
         raise ValueError("Observational dimension mismatch")
     if G.shape[0] != p or G.shape[1] != p:
         raise ValueError("G dimension mismatch")
     if W.shape[0] != p or W.shape[1] != p:
-        raise ValueError("G dimension mismatch")
+        raise ValueError("W dimension mismatch")
 
     if m0 is None:
         m0 = np.zeros(p)
     if C0 is None:
-        C0 = np.diag(np.ones(p))
+        C0 = np.diag(np.ones(p)) * 10**6
     
     a = np.empty((T, p))
     R = np.empty((T, p, p))
@@ -38,9 +40,6 @@ def dlm_filter(Y, F, G, V, W, m0 = None, C0 = None):
     Q = np.empty((T, n, n))
     m = np.empty((T, p))
     C = np.empty((T, p, p))
-
-    Gt = G.T
-    Ft = F.T
 
     a[0] = np.dot(G, m0)
     R[0] = np.dot(np.dot(G, C0), Gt) + W
