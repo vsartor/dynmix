@@ -10,3 +10,6 @@ Changelog
   support for cases where there are multiple realizations of the same
   univariate DLM at different times
 - Added Sphinx/Napoleon documentation support, using Google docstrings
+- Added point estimator for the Dirichlet process, based either on mean
+  or mode, as the function `dirichlet_backwards_estimator` as an
+  alternative on backwards sampling

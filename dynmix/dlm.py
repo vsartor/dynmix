@@ -27,7 +27,7 @@ def dlm_filter(Y, F, G, V, W, m0 = None, C0 = None):
         m0: The prior mean for the states. Defaults to zeros.
         C0: The prior covariance for the states. Defaults to a diagonal
             matrix with entrances equal to 10**6.
-    
+
     Returns:
         Six arrays - the prior means and covariances, a and R, the one
         step ahead forecast means and covariances, f and R, and the
@@ -50,7 +50,7 @@ def dlm_filter(Y, F, G, V, W, m0 = None, C0 = None):
         m0 = np.zeros(p)
     if C0 is None:
         C0 = np.diag(np.ones(p)) * 10**6
-    
+
     a = np.empty((T, p))
     R = np.empty((T, p, p))
     f = np.empty((T, n))
@@ -97,12 +97,12 @@ def dlm_multi_filter(Y, F, G, V, W, m0 = None, C0 = None):
         m0: The usual prior mean for the states. Defaults to zeros.
         C0: The usual prior covariance for the states. Defaults to a
             diagonal matrix with entrances equal to 10**6.
-    
+
     Returns:
         Four matrices - the prior means and covariances, a and R, and
         the online means and covariances, m and C.
     '''
-    
+
     p = F.size
     T = len(Y)
     Gt = G.T
@@ -155,7 +155,7 @@ def dlm_smoother(G, a, R, m, C):
         R: The prior covariance matrices returned by the filtering step.
         m: The online mean matrix returned by the filtering step.
         C: The online covariance matrices returned by the filtering step.
-    
+
     Returns:
         Two matrices - the posterior means and covariances, s and S.
     '''
@@ -173,5 +173,5 @@ def dlm_smoother(G, a, R, m, C):
         B = np.dot(np.dot(C[t], Gt), Rinv)
         s[t] = m[t] + np.dot(B, s[t+1] - a[t+1])
         S[t] = C[t] - np.dot(np.dot(B, R[t+1] - S[t+1]), B.T)
-    
+
     return s, S
