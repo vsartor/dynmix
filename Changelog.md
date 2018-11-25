@@ -1,7 +1,7 @@
 Changelog
 =========
 
-### 0.0.1-dev
+### 0.0.1
 
 - Added dirichlet.py file with forward filtering and backwards sampling
   algorithms for a Dirichlet process from Fonseca & Ferreira (2017)
