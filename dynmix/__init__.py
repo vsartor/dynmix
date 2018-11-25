@@ -14,3 +14,4 @@ Copyright notice:
 from .dirichlet import dirichlet_forward_filter, dirichlet_backwards_sampler, \
                        dirichlet_backwards_estimator
 from .dlm import dlm_filter, dlm_multi_filter, dlm_smoother
+from .sdmmm import sdmmm_estimator

@@ -13,3 +13,4 @@ Changelog
 - Added point estimator for the Dirichlet process, based either on mean
   or mode, as the function `dirichlet_backwards_estimator` as an
   alternative on backwards sampling
+- Implemented SDMMM, a simple level based DMMM
