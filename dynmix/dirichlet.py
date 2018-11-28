@@ -76,7 +76,7 @@ def mod_dirichlet_estimate(c, a, b, mode = False):
         The mode vector.
 
     Raises:
-        ValueError: if the mode does not exist.
+        ValueError: if the mode does not exist and mode is True.
     '''
 
     if mode:
@@ -99,7 +99,7 @@ def mod_dirichlet_parameters(c, delta, omega, mode = False):
         method: Whether to use mode or mean to estimate S.
 
     Raises:
-        ValueError: if the mode for S does not and mode is True.
+        ValueError: if the mode for S does not exist and mode is True.
     '''
 
     k = omega.size

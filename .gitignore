@@ -1,6 +1,7 @@
 .eggs
 .pytest_cache
 .vscode
+docs
 build
 dist
 __pycache__

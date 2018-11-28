@@ -20,6 +20,14 @@ dynmix.dlm module
     :undoc-members:
     :show-inheritance:
 
+dynmix.sdmmm module
+-------------------
+
+.. automodule:: dynmix.sdmmm
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
 
 Module contents
 ---------------
