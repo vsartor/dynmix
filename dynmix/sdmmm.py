@@ -55,7 +55,7 @@ def estimator(y, k, init_level, delta = 0.9, numit = 100):
 
     #-- Iterative updates of parameter estimates based on means
 
-    for l in range(numit):
+    for _ in range(numit):
         # Update membership dummy parameters for each unit
         for i in range(n):
             for t in range(T):
