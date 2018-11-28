@@ -17,63 +17,6 @@ from . import dlm
 from . import dirichlet
 
 
-def logpdf(y, Z, eta, delta, theta, phi, phi_w):
-    '''
-    Log posterior function for the SDMMM.
-
-    Args:
-        y: An array with each row being the time-series from one
-            observational unit.
-        Z: Array with each row being a matrix with the membership
-            dummy variable for one observational unit.
-        eta: Array with each row being a matrix with the states from
-            the Dirichlet process for one observational unit.
-        delta: The universal discount factor to be used for all the
-            units.
-        theta: Array with each row being the state-series for one
-            cluster.
-        phi: Array with the observational precision for each cluster.
-        phi_w: Array with the evolutional precision for each cluster.
-    '''
-
-    n, T = y.shape
-    k = phi.size
-
-    sd = 1 / np.sqrt(phi)
-    sd_w = 1 / np.sqrt(phi_w)
-
-    # 1. Likelihood: p(y|Z,theta,phi)
-
-    ll = 0
-    for i in range(n):
-        for t in range(T):
-            cluster = Z[i,t] == 1
-            ll += sps.norm.logpdf(y[i,t], theta[cluster,t], sd[cluster])
-
-    # 2. Dynamic Linear Models: p(theta|phi_w)
-
-    ldlm = 0
-    for j in range(k):
-        ldlm += np.sum(sps.norm.logpdf(theta[j,1:], theta[j,:-1], sd_w[j]))
-
-    # 3. Dummy Variables: p(Z|eta)
-
-    ldummy = 0
-    for i in range(n):
-        for t in range(T):
-            ldummy += sps.multinomial.logpmf(Z[i,t], 1, eta[i,t])
-
-    # 4. Dirichlet Process: p(eta|delta)
-
-    ldir = 0
-    for i in range(n):
-        for t in range(1,n):
-            # TODO: This is not actually correct (or is it?)
-            ldir += sps.dirichlet.logpdf(eta[i,t], delta * eta[i,t-1])
-
-    return ll + ldlm + ldummy + ldir
-
-
 def estimator(y, k, init_level, delta = 0.9, numit = 100):
     '''
     Simple Dynamic Membership Mixture Model. A level-based mixture
@@ -105,9 +48,6 @@ def estimator(y, k, init_level, delta = 0.9, numit = 100):
     # Dirichlet Process parameters
     eta = np.tile(npr.dirichlet(np.ones(k)), (n, T, 1))
     Z = np.tile(npr.multinomial(1, np.ones(k)/k), (n, T, 1))
-
-    # Likelihood
-    U = np.empty(numit)
 
     #-- Constants
 
@@ -147,7 +87,4 @@ def estimator(y, k, init_level, delta = 0.9, numit = 100):
             phi[j] = n / observation_ssq
             phi_w[j] = np.mean((theta[j,:-1] - theta[j,1:])**2)
 
-        # Update likelihood
-        U[l] = logpdf(y, Z, eta, delta, theta, phi, phi_w)
-
-    return eta, theta, phi, phi_w, U
+    return eta, theta, phi, phi_w
