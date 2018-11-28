@@ -57,7 +57,7 @@ class DirichletTests(unittest.TestCase):
                             [11.43549311, 24.07614016, 16.73863806, 32.800303],
                             [11.2919438, 22.66852614, 19.06477425, 33.5202727],
                             [10.16274942, 23.40167353, 21.15829683, 33.16824543]])
-        result = dm.dirichlet_forward_filter(y, .9, np.array([.1, .1, .1, .1]))
+        result = dm.dirichlet.forward_filter(y, .9, np.array([.1, .1, .1, .1]))
         self.assertTrue(np.isclose(result, correct).all())
 
     def test_dirichlet_backwards_sampler(self):
@@ -81,12 +81,12 @@ class DirichletTests(unittest.TestCase):
                       [2, 1, 2, 5],
                       [1, 1, 4, 4],
                       [0, 3, 4, 3]])
-        c = dm.dirichlet_forward_filter(y, .9, np.array([.1, .1, .1, .1]))
-        
+        c = dm.dirichlet.forward_filter(y, .9, np.array([.1, .1, .1, .1]))
+
         num_samples = 100
         results = np.empty((num_samples, *c.shape))
         for i in range(num_samples):
-            results[i] = dm.dirichlet_backwards_sampler(c, 0.9)
+            results[i] = dm.dirichlet.backwards_sampler(c, 0.9)
         mean_result = results.mean(axis = (0,1))
         self.assertTrue(0.110 <= mean_result[0] <= 0.130)
         self.assertTrue(0.250 <= mean_result[1] <= 0.270)
