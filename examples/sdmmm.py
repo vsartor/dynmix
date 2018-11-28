@@ -4,7 +4,6 @@ import scipy.stats as sps
 import matplotlib.pyplot as plt
 import dynmix as dm
 
-
 k = 2
 T = 10
 n = 5
@@ -43,7 +42,7 @@ for i in range(n):
     plt.plot(y[i], 'g--')
 plt.show()
 
-eta, theta, phi, phi_w, U = dm.sdmmm.estimator(y, 2, np.array([5, -5]), 0.8)
+eta, theta, phi, phi_w, U = dm.sdmmm.estimator(y, 2, np.array([5., -5.]), 0.8)
 
 plt.plot(sim_theta.T, 'k')
 plt.plot(theta.T, 'r')

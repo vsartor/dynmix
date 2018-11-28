@@ -17,7 +17,7 @@ from . import dlm
 from . import dirichlet
 
 
-def log_posterior(y, Z, eta, delta, theta, phi, phi_w):
+def logpdf(y, Z, eta, delta, theta, phi, phi_w):
     '''
     Log posterior function for the SDMMM.
 
@@ -36,9 +36,42 @@ def log_posterior(y, Z, eta, delta, theta, phi, phi_w):
         phi_w: Array with the evolutional precision for each cluster.
     '''
 
-    #TODO: Implement
+    n, T = y.shape
+    k = phi.size
 
-    return 0
+    sd = 1 / np.sqrt(phi)
+    sd_w = 1 / np.sqrt(phi_w)
+
+    # 1. Likelihood: p(y|Z,theta,phi)
+
+    ll = 0
+    for i in range(n):
+        for t in range(T):
+            cluster = Z[i,t] == 1
+            ll += sps.norm.logpdf(y[i,t], theta[cluster,t], sd[cluster])
+
+    # 2. Dynamic Linear Models: p(theta|phi_w)
+
+    ldlm = 0
+    for j in range(k):
+        ldlm += np.sum(sps.norm.logpdf(theta[j,1:], theta[j,:-1], sd_w[j]))
+
+    # 3. Dummy Variables: p(Z|eta)
+
+    ldummy = 0
+    for i in range(n):
+        for t in range(T):
+            ldummy += sps.multinomial.logpmf(Z[i,t], 1, eta[i,t])
+
+    # 4. Dirichlet Process: p(eta|delta)
+
+    ldir = 0
+    for i in range(n):
+        for t in range(1,n):
+            # TODO: This is not actually correct (or is it?)
+            ldir += sps.dirichlet.logpdf(eta[i,t], delta * eta[i,t-1])
+
+    return ll + ldlm + ldummy + ldir
 
 
 def estimator(y, k, init_level, delta = 0.9, numit = 100):
@@ -63,7 +96,6 @@ def estimator(y, k, init_level, delta = 0.9, numit = 100):
     n, T = y.shape
 
     #-- Initialize the parameters
-    #TODO: Allow more user initializations
 
     # DLM parameters
     phi = np.ones(k)
@@ -84,8 +116,6 @@ def estimator(y, k, init_level, delta = 0.9, numit = 100):
     #-- Iterative updates of parameter estimates based on means
 
     for l in range(numit):
-        print(f'sdmmm_estimator: iteration {l} out of {numit}')
-
         # Update membership dummy parameters for each unit
         for i in range(n):
             for t in range(T):
@@ -118,7 +148,6 @@ def estimator(y, k, init_level, delta = 0.9, numit = 100):
             phi_w[j] = np.mean((theta[j,:-1] - theta[j,1:])**2)
 
         # Update likelihood
-        # U[l] = sdmmm_likelihood(y, Z, eta, delta, theta, phi, phi_w)
-        U[l] = 0.
+        U[l] = logpdf(y, Z, eta, delta, theta, phi, phi_w)
 
     return eta, theta, phi, phi_w, U
