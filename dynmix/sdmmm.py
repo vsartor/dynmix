@@ -90,7 +90,7 @@ def estimator(y, k, init_level, delta = 0.9, numit = 100):
     return eta, theta, phi, phi_w
 
 
-def sampler(y, k, delta, init_level, numit = 10000):
+def sampler(y, k, delta, init_level, numit=5000, burnin=1000):
     '''
     Simple Dynamic Membership Mixture Model. A level-based mixture
     model with a first-order polynomial DLM for each cluster. This
@@ -105,6 +105,7 @@ def sampler(y, k, delta, init_level, numit = 10000):
             units.
         init_level: The initial level of each cluster.
         numit: Number of iterations for the algorithm to run.
+        burnin: Number of initial iterations to be discarded.
 
     Returns:
         Samples for each parameter.
@@ -134,10 +135,14 @@ def sampler(y, k, delta, init_level, numit = 10000):
     #-- Constants
 
     F = G = np.array([[1]])
+    c0 = np.ones(k) * 0.1
 
     #-- MCMC iterations
 
     for l in range(1, numit):
+        if l % 20 == 0:
+            print(f'Gibbs sampler at iteration {l} out of {numit}')
+
         sd = 1. / np.sqrt(phi[l-1])
         sd_w = 1. / np.sqrt(phi_w[l-1])
 
@@ -145,12 +150,12 @@ def sampler(y, k, delta, init_level, numit = 10000):
         for i in range(n):
             for t in range(T):
                 f_vals = sps.norm.pdf(y[i,t], theta[l-1,:,t], sd)
-                probs = eta[l-1,i,t] * f_vals
-                Z[l,i,t] = npr.multinomial(1, probs)
+                weights = eta[l-1,i,t] * f_vals
+                Z[l,i,t] = npr.multinomial(1, weights / weights.sum())
 
         # Sample Dirichlet states for each unit
         for i in range(n):
-            c = dirichlet.forward_filter(Z[l,i], delta, np.ones(k) * 0.1)
+            c = dirichlet.forward_filter(Z[l,i], delta, c0)
             eta[l,i] = dirichlet.backwards_sampler(c, delta)
 
         # Sample DLM states and parameters for each cluster
@@ -178,4 +183,5 @@ def sampler(y, k, delta, init_level, numit = 10000):
             state_ssq = np.sum((theta[l,j,:-1] - theta[l,j,1:])**2) + 0.0001
             phi_w[l,j] = npr.gamma(num_state / 2., 2. / state_ssq)
 
-    return eta, theta, phi, phi_w
+    return (eta[burnin:], Z[burnin:], theta[burnin:],
+            phi[burnin:], phi_w[burnin:])
