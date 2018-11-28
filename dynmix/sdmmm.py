@@ -17,7 +17,7 @@ from . import dlm
 from . import dirichlet
 
 
-def estimator(y, k, init_level, delta = 0.9, numit = 100):
+def estimator(y, k, delta, init_level, numit=10):
     '''
     Simple Dynamic Membership Mixture Model. A level-based mixture
     model with a first-order polynomial DLM for each cluster. This
@@ -26,10 +26,10 @@ def estimator(y, k, init_level, delta = 0.9, numit = 100):
     Args:
         y: An array with each row being the time-series from one
             observational unit.
-        k: Number of clusters.
-        init_level: The initial level of each cluster.
         delta: The universal discount factor to be used for all the
             units.
+        k: Number of clusters.
+        init_level: The initial level of each cluster.
         numit: Number of iterations for the algorithm to run.
 
     Returns:
@@ -87,10 +87,10 @@ def estimator(y, k, init_level, delta = 0.9, numit = 100):
             phi[j] = n / observation_ssq
             phi_w[j] = np.mean((theta[j,:-1] - theta[j,1:])**2)
 
-    return eta, theta, phi, phi_w
+    return eta, Z, theta, phi, phi_w
 
 
-def sampler(y, k, delta, init_level, numit=5000, burnin=1000):
+def sampler(y, k, delta, init_level, numit=4500, burnin=500):
     '''
     Simple Dynamic Membership Mixture Model. A level-based mixture
     model with a first-order polynomial DLM for each cluster. This
@@ -124,13 +124,7 @@ def sampler(y, k, delta, init_level, numit=5000, burnin=1000):
 
     #-- Initialize the parameters
 
-    phi[0] = np.ones(k)
-    phi_w[0] = np.ones(k)
-    theta[0] = np.tile(init_level, (T, 1)).T
-
-    # Dirichlet Process parameters
-    eta[0] = np.tile(npr.dirichlet(np.ones(k)), (n, T, 1))
-    Z[0] = np.tile(npr.multinomial(1, np.ones(k)/k), (n, T, 1))
+    eta[0], Z[0], theta[0], phi[0], phi_w[0] = estimator(y, k, delta, init_level)
 
     #-- Constants
 

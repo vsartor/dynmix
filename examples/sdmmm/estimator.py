@@ -42,7 +42,7 @@ for i in range(n):
     plt.plot(y[i], 'g--')
 plt.show()
 
-eta, theta, phi, phi_w = dm.sdmmm.estimator(y, 2, np.array([5., -5.]), 0.8)
+eta, Z, theta, phi, phi_w = dm.sdmmm.estimator(y, 2, np.array([5., -5.]), 0.8)
 
 plt.plot(sim_theta.T, 'k')
 plt.plot(theta.T, 'r')
