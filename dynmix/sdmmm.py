@@ -102,10 +102,7 @@ def estimator(y, k, init_level, delta = 0.9, numit = 100):
         # Update DLM states and parameters for each cluster
         for j in range(k):
             # Create observation list for multi_dlm
-            YJ = []
-            for t in range(T):
-                mask = Z[:,t,j] == 1
-                YJ.append(y[mask,t])
+            YJ = [y[Z[:,t,j] == 1,t] for t in range(T)]
 
             # Update states
             V = np.array([[1 / np.sqrt(phi[j])]])
