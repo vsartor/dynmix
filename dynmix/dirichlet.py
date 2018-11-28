@@ -14,7 +14,7 @@ import numpy as np
 import numpy.random as npr
 
 
-def dirichlet_forward_filter(y, delta, c0):
+def forward_filter(y, delta, c0):
     '''
     Performs forward filtering algorithm for a Dirichlet process as
     proposed in Fonseca & Ferreira (2017).
@@ -36,7 +36,7 @@ def dirichlet_forward_filter(y, delta, c0):
     return c
 
 
-def dirichlet_backwards_sampler(c, delta):
+def backwards_sampler(c, delta):
     '''
     Performs backwards sampling algorithm for a Dirichlet process as
     proposed in Fonseca & Ferreira (2017).
@@ -126,7 +126,7 @@ def mod_dirichlet_parameters(c, delta, omega, mode = False):
     return c, a, b
 
 
-def dirichlet_backwards_estimator(c, delta, mode = False):
+def backwards_estimator(c, delta, mode = False):
     '''
     Instead of performing usual backwards sampling, it iterates
     backwards picking values for omega that maximize its distribution,

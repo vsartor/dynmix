@@ -14,7 +14,7 @@ Copyright notice:
 import numpy as np
 
 
-def dlm_filter(Y, F, G, V, W, m0 = None, C0 = None):
+def filter(Y, F, G, V, W, m0 = None, C0 = None):
     '''
     Peforms the basic Kalman filter for a Dynamic Linear Model.
 
@@ -82,7 +82,7 @@ def dlm_filter(Y, F, G, V, W, m0 = None, C0 = None):
     return a, R, f, Q, m, C
 
 
-def dlm_multi_filter(Y, F, G, V, W, m0 = None, C0 = None):
+def multi_filter(Y, F, G, V, W, m0 = None, C0 = None):
     '''
     Peforms filtering for univariate observational specifications
     considering multiple 'samples' from the observational variable
@@ -145,7 +145,7 @@ def dlm_multi_filter(Y, F, G, V, W, m0 = None, C0 = None):
     return a, R, m, C
 
 
-def dlm_smoother(G, a, R, m, C):
+def smoother(G, a, R, m, C):
     '''
     Peforms basic Kalman smoothing for a Dynamic Linear Model.
 

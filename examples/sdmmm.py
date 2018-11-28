@@ -2,7 +2,8 @@ import numpy as np
 import numpy.random as npr
 import scipy.stats as sps
 import matplotlib.pyplot as plt
-from dynmix import sdmmm_estimator
+import dynmix as dm
+
 
 k = 2
 T = 10
@@ -42,7 +43,7 @@ for i in range(n):
     plt.plot(y[i], 'g--')
 plt.show()
 
-eta, theta, phi, phi_w, U = sdmmm_estimator(y, 2, np.array([5, -5]), delta = 0.8)
+eta, theta, phi, phi_w, U = dm.sdmmm.estimator(y, 2, np.array([5, -5]), 0.8)
 
 plt.plot(sim_theta.T, 'k')
 plt.plot(theta.T, 'r')

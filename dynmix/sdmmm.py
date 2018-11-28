@@ -13,13 +13,13 @@ import numpy as np
 import numpy.random as npr
 import scipy.stats as sps
 
-from .dlm import dlm_multi_filter, dlm_smoother
-from .dirichlet import dirichlet_forward_filter, dirichlet_backwards_estimator
+from . import dlm
+from . import dirichlet
 
 
-def sdmmm_likelihood(y, Z, eta, delta, theta, phi, phi_w):
+def log_posterior(y, Z, eta, delta, theta, phi, phi_w):
     '''
-    Likelihood function for the SDMMM.
+    Log posterior function for the SDMMM.
 
     Args:
         y: An array with each row being the time-series from one
@@ -41,7 +41,7 @@ def sdmmm_likelihood(y, Z, eta, delta, theta, phi, phi_w):
     return 0
 
 
-def sdmmm_estimator(y, k, init_level, delta = 0.9, numit = 100):
+def estimator(y, k, init_level, delta = 0.9, numit = 100):
     '''
     Simple Dynamic Membership Mixture Model. A level-based mixture
     model with a first-order polynomial DLM for each cluster. This
@@ -96,8 +96,8 @@ def sdmmm_estimator(y, k, init_level, delta = 0.9, numit = 100):
 
         # Update Dirichlet states for each unit
         for i in range(n):
-            c = dirichlet_forward_filter(Z[i], delta, np.ones(k) * 0.1)
-            eta[i] = dirichlet_backwards_estimator(c, delta)
+            c = dirichlet.forward_filter(Z[i], delta, np.ones(k) * 0.1)
+            eta[i] = dirichlet.backwards_estimator(c, delta)
 
         # Update DLM states and parameters for each cluster
         for j in range(k):
@@ -110,8 +110,8 @@ def sdmmm_estimator(y, k, init_level, delta = 0.9, numit = 100):
             # Update states
             V = np.array([[1 / np.sqrt(phi[j])]])
             W = np.array([[1 / np.sqrt(phi_w[j])]])
-            filters = dlm_multi_filter(YJ, F, G, V, W)
-            theta[j] = dlm_smoother(G, *filters)[0][:,0]
+            filters = dlm.multi_filter(YJ, F, G, V, W)
+            theta[j] = dlm.smoother(G, *filters)[0][:,0]
 
             # Update parameters
             observation_ssq = 0
