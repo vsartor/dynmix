@@ -29,7 +29,7 @@ setup(
     test_suite='tests',
     classifiers=[
         'Development Status :: 1 - Planning',
-        'Intended Audience :: Science/Reserach',
+        'Intended Audience :: Science/Research',
         'Topic :: Scientific/Engineering :: Information Analysis',
         'License :: OSI Approved :: MIT License',
         'Programming Language :: Python :: 3',
