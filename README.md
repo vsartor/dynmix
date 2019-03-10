@@ -1,6 +1,8 @@
 # ![dynMix](dynmix.png)
 
-This Python package implements Dynamic Membership Mixture Models, as proposed in my master's dissertation. Currently in very early stages of development.
+This is a Python package focused on clustering and mixture models and is being developed as part of my master's dissertation. The objective is to include various routines for dealing with clustering time-series data, including a dynamic clustering option, which is being proposed in my dissertation.
+
+It is currently undergoing development with a lot of changes and may contain errors.
 
 The project is subject to the terms of the Mozilla Public License, v. 2.0. See the LICENSE file in the root of the repository for further details.
 
