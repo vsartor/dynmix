@@ -87,7 +87,7 @@ class DirichletTests(unittest.TestCase):
         results = np.empty((num_samples, *c.shape))
         for i in range(num_samples):
             results[i] = dm.dirichlet.backwards_sampler(c, 0.9)
-        mean_result = results.mean(axis = (0,1))
+        mean_result = results.mean(axis=(0, 1))
         self.assertTrue(0.110 <= mean_result[0] <= 0.130)
         self.assertTrue(0.250 <= mean_result[1] <= 0.270)
         self.assertTrue(0.225 <= mean_result[2] <= 0.245)
