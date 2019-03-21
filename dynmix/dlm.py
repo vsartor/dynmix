@@ -175,3 +175,48 @@ def smoother(G, a, R, m, C):
         S[t] = C[t] - np.dot(np.dot(B, R[t+1] - S[t+1]), B.T)
 
     return s, S
+
+
+def rw_mle(y, numit=50):
+    '''
+    Obtains maximum likelihood estimates for a Random Walk DLM.
+
+    CURRENT GRADIENT DESCENT IMPLEMENTATION IS NOT WORKING!
+    ONLY COMMITING FOR POSTERIORITY.
+
+    Args:
+        y: The vector of observations.
+
+    Returns:
+        theta: The estimates for the states.
+        V: The estimate for the observational variance.
+        W: The estimate for the evolutional variance.
+    '''
+
+    y = np.array([y]).T
+    F = np.array([[1]])
+    G = np.array([[1]])
+
+    theta = np.mean(theta)
+    V = np.array([[np.mean((y - theta)**2)]])
+    W = np.array([[np.mean((theta[:-1] - theta[1:])**2)]])
+
+    # Iterate on maximums
+    for i in range(numit):
+        # Maximum for states is the mean for the normal
+        a, R, _, _, m, C = filter(y, F, G, V, W)
+        s, _ = smoother(G, a, R, m, C)
+        theta = s[:,0]  # Get first (and only) dimension as vector
+
+        # The observational variance estimator comes from the difference
+        # between the state and observation
+        V[0,0] = np.mean((y - theta)**2)
+
+        # The evolutional variance estimator comes from the difference between
+        # the states and its lagged values
+        W[0,0] = np.mean((theta[:-1] - theta[1:])**2)
+
+        # TODO: Check difference between old and new estimates and stop early
+        #       if values stopped changing?
+
+    return theta, V, W
