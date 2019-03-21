@@ -197,7 +197,7 @@ def rw_mle(y, numit=50):
     F = np.array([[1]])
     G = np.array([[1]])
 
-    theta = np.mean(theta)
+    theta = np.mean(y)
     V = np.array([[np.mean((y - theta)**2)]])
     W = np.array([[np.mean((theta[:-1] - theta[1:])**2)]])
 
