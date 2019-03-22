@@ -26,7 +26,7 @@ def filter(Y, F, G, V, W, m0=None, C0=None):
         W: The evolutional error covariance matrix.
         m0: The prior mean for the states. Defaults to zeros.
         C0: The prior covariance for the states. Defaults to a diagonal
-            matrix with entrances equal to 10**6.
+            matrix with entries equal to 10**6.
 
     Returns:
         Six arrays - the prior means and covariances, a and R, the one
@@ -96,7 +96,7 @@ def multi_filter(Y, F, G, V, W, m0=None, C0=None):
         W: The usual evolutional error covariance matrix.
         m0: The usual prior mean for the states. Defaults to zeros.
         C0: The usual prior covariance for the states. Defaults to a
-            diagonal matrix with entrances equal to 10**6.
+            diagonal matrix with entries equal to 10**6.
 
     Returns:
         Four matrices - the prior means and covariances, a and R, and
@@ -143,6 +143,86 @@ def multi_filter(Y, F, G, V, W, m0=None, C0=None):
         C[t] = R[t] - np.dot(np.dot(A, Q), A.T)
 
     return a, R, m, C
+
+
+def filter_full(Y, F, G, df=0.9, m0=None, C0=None, l0=None, s0=None):
+    '''
+    Peforms Kalman filtering with online inference for observational variance
+    and discount factors for a Dynamic Linear Model.
+
+    Args:
+        Y: The matrix of observations, with an observation in each row. Only
+           supports univariate observations for the time being.
+        F: The observational matrix.
+        G: The evolutional matrix.
+        df: The discount factor. Defaults to 0.9.
+        m0: The prior mean for the states. Defaults to zeros.
+        C0: The prior covariance for the states. Defaults to a diagonal
+            matrix with entries equal to 10**6.
+        l0: The prior 'number of entries' for observational variance.
+        s0: The prior expected value for observational variance.
+
+    Returns:
+        Eight arrays - the prior means and covariances, a and R, the one
+        step ahead forecast means and covariances, f and R, the
+        online means and covariances, m and C, and the online 'number of
+        observations' and estimates for observational variance, l and s.
+    '''
+
+    T = Y.shape[0]
+    n, p = F.shape
+    Gt = G.T
+    Ft = F.T
+
+    if Y.shape[1] != 1:
+        raise ValueError("Only the univariate case is supported for now")
+    if Y.shape[1] != n:
+        raise ValueError("F dimension mismatch")
+    if G.shape[0] != p or G.shape[1] != p:
+        raise ValueError("G dimension mismatch")
+
+    if m0 is None:
+        m0 = np.zeros(p)
+    if C0 is None:
+        C0 = np.diag(np.ones(p)) * 10**6
+    if l0 is None:
+        l0 = 1
+    if s0 is None:
+        s0 = np.abs(Y[0,0])
+
+    a = np.empty((T, p))
+    R = np.empty((T, p, p))
+    f = np.empty((T))
+    Q = np.empty((T))
+    m = np.empty((T, p))
+    C = np.empty((T, p, p))
+    l = np.empty(T)
+    s = np.empty(T)
+
+    a[0] = np.dot(G, m0)
+    R[0] = np.dot(np.dot(G, C0), Gt) / df
+    f[0] = np.dot(F, a[0])
+    Q[0] = np.dot(np.dot(F, R[0]), Ft) + s0
+    e = Y[0] - f[0]
+    A = np.dot(R[0], Ft) / Q[0]
+    m[0] = a[0] + np.dot(A, e)
+    l[0] = l0 + 1
+    s[0] = s0 + s0 / l[0] * (e**2 / Q[0] - 1)
+    C[0] = (R[0] - Q[0] * np.dot(A, A.T)) * s[0] / s0
+
+    for t in range(1, T):
+        a[t] = np.dot(G, m[t-1])
+        R[t] = np.dot(np.dot(G, C[t-1]), Gt) / df
+        f[t] = np.dot(F, a[t])
+        Q[t] = np.dot(np.dot(F, R[t]), Ft) + s[t-1]
+        e = Y[t] - f[t]
+        A = np.dot(R[t], Ft) / Q[t]
+        m[t] = a[t] + np.dot(A, e)
+        l[t] = l[t-1] + 1
+        s[t] = s[t-1] + s[t-1] / l[t] * (e**2 / Q[t] - 1)
+        C[t] = (R[t] - Q[t] * np.dot(A, A.T)) * s[t] / s[t-1]
+
+    return a, R, f, Q, m, C, l, s
 
 
 def smoother(G, a, R, m, C):
