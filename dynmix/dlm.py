@@ -145,7 +145,7 @@ def multi_filter(Y, F, G, V, W, m0=None, C0=None):
     return a, R, m, C
 
 
-def filter_full(Y, F, G, df=0.9, m0=None, C0=None, l0=None, s0=None):
+def filter_full(Y, F, G, df=0.8, m0=None, C0=None, l0=None, s0=None):
     '''
     Peforms Kalman filtering with online inference for observational variance
     and discount factors for a Dynamic Linear Model.
@@ -192,15 +192,18 @@ def filter_full(Y, F, G, df=0.9, m0=None, C0=None, l0=None, s0=None):
 
     a = np.empty((T, p))
     R = np.empty((T, p, p))
-    f = np.empty((T))
-    Q = np.empty((T))
+    f = np.empty(T)
+    Q = np.empty(T)
     m = np.empty((T, p))
     C = np.empty((T, p, p))
     l = np.empty(T)
     s = np.empty(T)
+    W = np.empty(T)
 
     a[0] = np.dot(G, m0)
-    R[0] = np.dot(np.dot(G, C0), Gt) / df
+    P = np.dot(np.dot(G, C0), Gt)
+    W[0] = P * (1 - df) / df
+    R[0] = P + W[0]
     f[0] = np.dot(F, a[0])
     Q[0] = np.dot(np.dot(F, R[0]), Ft) + s0
     e = Y[0] - f[0]
@@ -212,7 +215,9 @@ def filter_full(Y, F, G, df=0.9, m0=None, C0=None, l0=None, s0=None):
 
     for t in range(1, T):
         a[t] = np.dot(G, m[t-1])
-        R[t] = np.dot(np.dot(G, C[t-1]), Gt) / df
+        P = np.dot(np.dot(G, C[t-1]), Gt)
+        W[t] = P * (1 - df) / df
+        R[t] = P + W[t]
         f[t] = np.dot(F, a[t])
         Q[t] = np.dot(np.dot(F, R[t]), Ft) + s[t-1]
         e = Y[t] - f[t]
@@ -222,7 +227,7 @@ def filter_full(Y, F, G, df=0.9, m0=None, C0=None, l0=None, s0=None):
         s[t] = s[t-1] + s[t-1] / l[t] * (e**2 / Q[t] - 1)
         C[t] = (R[t] - Q[t] * np.dot(A, A.T)) * s[t] / s[t-1]
 
-    return a, R, f, Q, m, C, l, s
+    return a, R, f, Q, m, C, l, s, W
 
 
 def smoother(G, a, R, m, C):
@@ -261,9 +266,6 @@ def rw_mle(y, numit=50):
     '''
     Obtains maximum likelihood estimates for a Random Walk DLM.
 
-    CURRENT GRADIENT DESCENT IMPLEMENTATION IS NOT WORKING!
-    ONLY COMMITING FOR POSTERIORITY.
-
     Args:
         y: The vector of observations.
 
@@ -277,9 +279,12 @@ def rw_mle(y, numit=50):
     F = np.array([[1]])
     G = np.array([[1]])
 
-    theta = np.mean(y)
-    V = np.array([[np.mean((y - theta)**2)]])
-    W = np.array([[np.mean((theta[:-1] - theta[1:])**2)]])
+    # Initialize values using a filter_full
+    a, R, _, _, m, C, _, s, W = filter_full(y, F, G, 0.7)
+    pm, pC = smoother(G, a, R, m, C)
+    theta = pm[:,0]
+    V = np.array([[s[-1]]])
+    W = np.array([[W.mean()]])
 
     # Iterate on maximums
     for i in range(numit):
