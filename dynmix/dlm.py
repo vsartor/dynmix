@@ -366,14 +366,14 @@ def rw_mle(y, numit=50):
     pm, pC = smoother(G, a, R, m, C)
     theta = pm[:,0]
     V = np.array([[s[-1]]])
-    W = np.array([[W.mean()]])
+    W = np.array([[W[1:].mean()]])
 
     # Iterate on maximums
     for i in range(numit):
         a, R, _, _, m, C, l, s = filter_partial(y, F, G, W)
         pm, _ = smoother(G, a, R, m, C)
         theta = pm[:,0]  # Get first (and only) dimension as vector
-        V[0, 0] = (s[-1] * l[-1] - s[0]) / (l[-1] + l[0])
+        V[0, 0] = s[-1]
 
         # The evolutional variance estimator comes from the difference between
         # the states and its lagged values
