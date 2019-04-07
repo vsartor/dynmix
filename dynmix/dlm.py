@@ -13,6 +13,9 @@ Copyright notice:
 
 import numpy as np
 
+import scipy.stats as sps
+import scipy.optimize as opt
+
 
 def filter(Y, F, G, V, W, m0=None, C0=None):
     '''
@@ -188,7 +191,7 @@ def filter_full(Y, F, G, df=0.8, m0=None, C0=None, l0=None, s0=None):
     if l0 is None:
         l0 = 1
     if s0 is None:
-        s0 = np.abs(Y[0,0])
+        s0 = np.abs(Y[0, 0])
 
     a = np.empty((T, p))
     R = np.empty((T, p, p))
@@ -275,7 +278,7 @@ def filter_partial(Y, F, G, W, m0=None, C0=None, l0=None, s0=None):
     if l0 is None:
         l0 = 1
     if s0 is None:
-        s0 = np.abs(Y[0,0])
+        s0 = np.abs(Y[0, 0])
 
     a = np.empty((T, p))
     R = np.empty((T, p, p))
@@ -344,7 +347,25 @@ def smoother(G, a, R, m, C):
     return s, S
 
 
-def rw_mle(y, numit=50):
+def rw_likelihood(y, theta, V, W):
+    '''
+    Likelihood function of the random walk DLM.
+
+    Args:
+        y: The vector of observations.
+        theta: The vector of states.
+        V: The observational variance.
+        W: The evolutional variance.
+
+    Returns:
+        The log-likelihood for these observations and parameter values.
+    '''
+
+    return sps.norm.logpdf(y, theta, np.sqrt(V)).sum() + \
+        sps.norm.logpdf(theta[1:], theta[:-1], np.sqrt(W)).sum()
+
+
+def rw_mle(y, numit=20):
     '''
     Obtains maximum likelihood estimates for a Random Walk DLM.
 
@@ -363,23 +384,151 @@ def rw_mle(y, numit=50):
 
     # Initialize values using a filter_full
     a, R, _, _, m, C, _, s, W = filter_full(y, F, G, 0.7)
-    pm, pC = smoother(G, a, R, m, C)
-    theta = pm[:,0]
+    pm, _ = smoother(G, a, R, m, C)
+    theta = pm[:, 0]
     V = np.array([[s[-1]]])
     W = np.array([[W[1:].mean()]])
 
     # Iterate on maximums
-    for i in range(numit):
-        a, R, _, _, m, C, l, s = filter_partial(y, F, G, W)
-        pm, _ = smoother(G, a, R, m, C)
-        theta = pm[:,0]  # Get first (and only) dimension as vector
-        V[0, 0] = s[-1]
+    for _ in range(numit):
+        # Maximum for states is the mean for the normal
+        a, R, _, _, m, C = filter(y, F, G, V, W)
+        s, _ = smoother(G, a, R, m, C)
+        theta = s[:, 0]  # Get first (and only) state dimension as vector
 
-        # The evolutional variance estimator comes from the difference between
-        # the states and its lagged values
-        W[0,0] = np.mean((theta[:-1] - theta[1:])**2)
+        # The observational variance estimator comes from the inverse gamma
+        # distribution. We have that V | theta, y ~ IG(n, np.sum((y - theta)**2))
+        # and the mode is beta / (alpha + 1)
+        V[0, 0] = np.sum((y - theta)**2) / theta.size
+
+        # The evolutional variance estimator comes from the inverse gamma
+        # distribution. We have that W | theta, y ~ IG(T-1, np.sum((theta - theta[lag])**2))
+        # and the mode is beta / (alpha + 1)
+        W[0, 0] = np.sum((theta[1:] - theta[:-1])**2) / (theta.size - 1)
 
         # TODO: Check difference between old and new estimates and stop early
         #       if values stopped changing?
+
+    return theta, V, W
+
+
+def rw_mle_opt(y, numit=20):
+    '''
+    Obtains maximum likelihood estimates for a Random Walk DLM.
+
+    Args:
+        y: The vector of observations.
+
+    Returns:
+        theta: The estimates for the states.
+        V: The estimate for the observational variance.
+        W: The estimate for the evolutional variance.
+    '''
+
+    T = y.size
+    y = np.array([y]).T
+    F = np.array([[1]])
+    G = np.array([[1]])
+
+    # Initialize values using a filter_full
+    a, R, _, _, m, C, _, s, W = filter_full(y, F, G, 0.7)
+    pm, _ = smoother(G, a, R, m, C)
+    theta = pm[:, 0]
+    V = np.array([[s[-1]]])
+    W = np.array([[W[1:].mean()]])
+
+    # Iterate on maximums
+    for _ in range(numit):
+        res = opt.minimize(lambda x: -rw_likelihood(y, x, V, W), x0=np.zeros(T),
+                           method='L-BFGS-B', bounds=[(-100, 100) for t in range(T)])
+        theta = res.x
+
+        res = opt.minimize(lambda x: -rw_likelihood(y, theta, x[0], x[1]), x0=(4, 4),
+                           method='L-BFGS-B', bounds=[(0.001, 1000) for i in range(2)])
+        V, W = res.x
+
+    return theta, V, W
+
+
+def rw_mle_delta(y, delta, numit=20):
+    '''
+    Obtains maximum likelihood estimates for a Random Walk DLM.
+
+    Args:
+        y: The vector of observations.
+        delta: Controls how much we'll penalize non-smoothness of theta.
+
+    Returns:
+        theta: The estimates for the states.
+        V: The estimate for the observational variance.
+    '''
+
+    y = np.array([y]).T
+    F = np.array([[1]])
+    G = np.array([[1]])
+
+    # Initialize values using a filter_full
+    a, R, _, _, m, C, _, s, W = filter_full(y, F, G, 0.7)
+    pm, _ = smoother(G, a, R, m, C)
+    theta = pm[:, 0]
+    V = np.array([[s[-1]]])
+
+    W_est = delta * np.mean((y[1:] - y[:-1])**2)
+    W = np.array([[W_est]])
+
+    # Iterate on maximums
+    for _ in range(numit):
+        # Maximum for states is the mean for the normal
+        a, R, _, _, m, C = filter(y, F, G, V, W)
+        s, _ = smoother(G, a, R, m, C)
+        theta = s[:, 0]  # Get first (and only) state dimension as vector
+
+        # The observational variance estimator comes from the inverse gamma
+        # distribution. We have that V | theta, y ~ IG(n, np.sum((y - theta)**2))
+        # and the mode is beta / (alpha + 1)
+        V[0, 0] = np.sum((y - theta)**2) / theta.size
+
+        # TODO: Check difference between old and new estimates and stop early
+        #       if values stopped changing?
+
+    return theta, V, W
+
+
+def rw_mle_delta_opt(y, delta, numit=20):
+    '''
+    Obtains maximum likelihood estimates for a Random Walk DLM.
+
+    Args:
+        y: The vector of observations.
+        delta: Controls how much we'll penalize non-smoothness of theta.
+
+    Returns:
+        theta: The estimates for the states.
+        V: The estimate for the observational variance.
+    '''
+
+    T = y.size
+    y = np.array([y]).T
+    F = np.array([[1]])
+    G = np.array([[1]])
+
+    # Initialize values using a filter_full
+    a, R, _, _, m, C, _, s, W = filter_full(y, F, G, 0.7)
+    pm, _ = smoother(G, a, R, m, C)
+    theta = pm[:, 0]
+    V = np.array([[s[-1]]])
+
+    W_est = delta * np.mean((y[1:] - y[:-1])**2)
+    W = np.array([[W_est]])
+
+    # Iterate on maximums
+    for _ in range(numit):
+        res = opt.minimize(lambda x: -rw_likelihood(y, x, V, W), x0=np.zeros(T),
+                           method='L-BFGS-B', bounds=[(-100, 100) for t in range(T)])
+        theta = res.x
+
+        res = opt.minimize(lambda x: -rw_likelihood(y, theta, x, W), x0=[4],
+                           method='L-BFGS-B', bounds=[(0.001, 1000)])
+        V = res.x[0]
 
     return theta, V, W
