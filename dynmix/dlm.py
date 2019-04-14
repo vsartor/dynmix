@@ -85,6 +85,87 @@ def filter(Y, F, G, V, W, m0=None, C0=None):
     return a, R, f, Q, m, C
 
 
+def filter_df(Y, F, G, V, df=0.9, m0=None, C0=None):
+    '''
+    Peforms the basic Kalman filter for a Dynamic Linear Model with discount
+    factor modelling for the evolutional variance.
+
+    Args:
+        Y: The matrix of observations, with an observation in each row.
+        F: The observational matrix.
+        G: The evolutional matrix.
+        V: The observational error covariance matrix.
+        df: The discount factor. Defaults to 0.9.
+        m0: The prior mean for the states. Defaults to zeros.
+        C0: The prior covariance for the states. Defaults to a diagonal
+            matrix with entries equal to 10**6.
+
+    Returns:
+        a: Prior means.
+        R: Prior covariances.
+        f: One-step ahead forecast means.
+        Q: One-step ahead forecast covariances.
+        m: Online means.
+        C: Online covariances.
+        W: Imposed values for W.
+    '''
+
+    T = Y.shape[0]
+    n, p = F.shape
+    Gt = G.T
+    Ft = F.T
+
+    if Y.shape[1] != n or V.shape[0] != n or V.shape[1] != n:
+        raise ValueError("Observational dimension mismatch")
+    if G.shape[0] != p or G.shape[1] != p:
+        raise ValueError("G dimension mismatch")
+
+    if m0 is None:
+        m0 = np.zeros(p)
+    elif type(m0) in [float, int]:
+        m0 = np.ones(p) * m0
+
+    if C0 is None:
+        C0 = np.eye(p) * 10**6
+    elif type(C0) in [float, int]:
+        C0 = np.eye(p) * C0
+
+    a = np.empty((T, p))
+    R = np.empty((T, p, p))
+    f = np.empty((T, n))
+    Q = np.empty((T, n, n))
+    m = np.empty((T, p))
+    C = np.empty((T, p, p))
+    W = np.empty((T, p, p))
+
+    a[0] = np.dot(G, m0)
+    P = np.dot(np.dot(G, C0), Gt)
+    W[0] = P * (1 - df) / df
+    R[0] = np.dot(np.dot(G, C0), Gt) + W[0]
+    f[0] = np.dot(F, a[0])
+    Q[0] = np.dot(np.dot(F, R[0]), Ft) + V
+    e = Y[0] - f[0]
+    Qinv = np.linalg.inv(Q[0])
+    A = np.dot(np.dot(R[0], Ft), Qinv)
+    m[0] = a[0] + np.dot(A, e)
+    C[0] = R[0] - np.dot(np.dot(A, Q[0]), A.T)
+
+    for t in range(1, T):
+        a[t] = np.dot(G, m[t-1])
+        P = np.dot(np.dot(G, C[t-1]), Gt)
+        W[t] = P * (1 - df) / df
+        R[t] = np.dot(np.dot(G, C[t-1]), Gt) + W[t]
+        f[t] = np.dot(F, a[t])
+        Q[t] = np.dot(np.dot(F, R[t]), Ft) + V
+        e = Y[t] - f[t]
+        Qinv = np.linalg.inv(Q[t])
+        A = np.dot(np.dot(R[t], Ft), Qinv)
+        m[t] = a[t] + np.dot(A, e)
+        C[t] = R[t] - np.dot(np.dot(A, Q[t]), A.T)
+
+    return a, R, f, Q, m, C, W
+
+
 def multi_filter(Y, F, G, V, W, m0=None, C0=None):
     '''
     Peforms filtering for univariate observational specifications
@@ -365,6 +446,28 @@ def rw_likelihood(y, theta, V, W):
         sps.norm.logpdf(theta[1:], theta[:-1], np.sqrt(W)).sum()
 
 
+def rw_likelihood_df(y, theta, V, df):
+    '''
+    Likelihood function of the random walk DLM
+    with a discount factor.
+
+    Args:
+        y: The vector of observations.
+        theta: The vector of states.
+        V: The observational variance.
+        df: The discount factor.
+
+    Returns:
+        The log-likelihood for these observations and parameter values.
+    '''
+
+    _, _, _, _, _, _, W = filter_df(y, np.eye(1), np.eye(1), V, df)
+    W = W[:,0,0]
+
+    return sps.norm.logpdf(y, theta, np.sqrt(V)).sum() + \
+        sps.norm.logpdf(theta[1:], theta[:-1], np.sqrt(W)).sum()
+
+
 def rw_mle(y, numit=20):
     '''
     Obtains maximum likelihood estimates for a Random Walk DLM.
@@ -461,6 +564,7 @@ def rw_mle_delta(y, delta, numit=20):
     Returns:
         theta: The estimates for the states.
         V: The estimate for the observational variance.
+        W: The fixed value of W.
     '''
 
     y = np.array([y]).T
@@ -473,6 +577,7 @@ def rw_mle_delta(y, delta, numit=20):
     theta = pm[:, 0]
     V = np.array([[s[-1]]])
 
+    # Set the fixed value for W
     W_est = delta * np.mean((y[1:] - y[:-1])**2)
     W = np.array([[W_est]])
 
@@ -488,9 +593,6 @@ def rw_mle_delta(y, delta, numit=20):
         # and the mode is beta / (alpha + 1)
         V[0, 0] = np.sum((y - theta)**2) / theta.size
 
-        # TODO: Check difference between old and new estimates and stop early
-        #       if values stopped changing?
-
     return theta, V, W
 
 
@@ -505,6 +607,7 @@ def rw_mle_delta_opt(y, delta, numit=20):
     Returns:
         theta: The estimates for the states.
         V: The estimate for the observational variance.
+        W: The fixed value of W.
     '''
 
     T = y.size
@@ -530,5 +633,45 @@ def rw_mle_delta_opt(y, delta, numit=20):
         res = opt.minimize(lambda x: -rw_likelihood(y, theta, x, W), x0=[4],
                            method='L-BFGS-B', bounds=[(0.001, 1000)])
         V = res.x[0]
+
+    return theta, V, W
+
+
+def rw_mle_df(y, df, numit=20):
+    '''
+    Obtains maximum likelihood estimates for a Random Walk DLM assuming
+    discount factor for the evolution.
+
+    Args:
+        y: The vector of observations.
+        df: Discount factor.
+
+    Returns:
+        theta: The estimates for the states.
+        V: The estimate for the observational variance.
+        W: The fixed values of W.
+    '''
+
+    y = np.array([y]).T
+    F = np.array([[1]])
+    G = np.array([[1]])
+
+    # Initialize values using a filter_full
+    a, R, _, _, m, C, _, s, W = filter_full(y, F, G, 0.7)
+    pm, _ = smoother(G, a, R, m, C)
+    theta = pm[:, 0]
+    V = np.array([[s[-1]]])
+
+    # Iterate on maximums
+    for _ in range(numit):
+        # Maximum for states is the mean for the normal
+        a, R, _, _, m, C, W = filter_df(y, F, G, V, df)
+        s, _ = smoother(G, a, R, m, C)
+        theta = s[:, 0]  # Get first (and only) state dimension as vector
+
+        # The observational variance estimator comes from the inverse gamma
+        # distribution. We have that V | theta, y ~ IG(n, np.sum((y - theta)**2))
+        # and the mode is beta / (alpha + 1)
+        V[0, 0] = np.sum((y - theta)**2) / theta.size
 
     return theta, V, W
