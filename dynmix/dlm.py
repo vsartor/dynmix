@@ -446,28 +446,6 @@ def rw_likelihood(y, theta, V, W):
         sps.norm.logpdf(theta[1:], theta[:-1], np.sqrt(W)).sum()
 
 
-def rw_likelihood_df(y, theta, V, df):
-    '''
-    Likelihood function of the random walk DLM
-    with a discount factor.
-
-    Args:
-        y: The vector of observations.
-        theta: The vector of states.
-        V: The observational variance.
-        df: The discount factor.
-
-    Returns:
-        The log-likelihood for these observations and parameter values.
-    '''
-
-    _, _, _, _, _, _, W = filter_df(y, np.eye(1), np.eye(1), V, df)
-    W = W[:,0,0]
-
-    return sps.norm.logpdf(y, theta, np.sqrt(V)).sum() + \
-        sps.norm.logpdf(theta[1:], theta[:-1], np.sqrt(W)).sum()
-
-
 def rw_mle(y, numit=20):
     '''
     Obtains maximum likelihood estimates for a Random Walk DLM.
@@ -637,7 +615,7 @@ def rw_mle_delta_opt(y, delta, numit=20):
     return theta, V, W
 
 
-def rw_mle_df(y, df, numit=20):
+def rw_mle_df(y, df, numit=20, m0=None, C0=None):
     '''
     Obtains maximum likelihood estimates for a Random Walk DLM assuming
     discount factor for the evolution.
@@ -645,6 +623,8 @@ def rw_mle_df(y, df, numit=20):
     Args:
         y: The vector of observations.
         df: Discount factor.
+        m0: Passed onto filter_df. Defaults to None.
+        C0: Passed onto filter_df. Defaults to None.
 
     Returns:
         theta: The estimates for the states.
@@ -665,7 +645,7 @@ def rw_mle_df(y, df, numit=20):
     # Iterate on maximums
     for _ in range(numit):
         # Maximum for states is the mean for the normal
-        a, R, _, _, m, C, W = filter_df(y, F, G, V, df)
+        a, R, _, _, m, C, W = filter_df(y, F, G, V, df, m0, C0)
         s, _ = smoother(G, a, R, m, C)
         theta = s[:, 0]  # Get first (and only) state dimension as vector
 
