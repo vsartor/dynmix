@@ -428,15 +428,47 @@ def smoother(G, a, R, m, C):
     return s, S
 
 
+def likelihood(y, theta, F, G, V, W):
+    '''
+    Log-likelihood function for a general DLM.
+
+    Args:
+        y: The vector of observations.
+        theta: The vector of states.
+        F: The observational matrix.
+        G: The evolutional matrix.
+        V: The observational covariance matrix.
+        W: The evolutional covariance matrice (or matrices).
+
+    Returns:
+        The log-likelihood value.
+    '''
+
+    T = y.shape[0]
+
+    # A constant covariance matrix was passed, tile it T times
+    if W.ndim == 2:
+        W = np.tile(W, (T, 1, 1))
+
+    logpdf = sps.multivariate_normal.logpdf(y[0], np.dot(F, theta[0]), V)
+
+    for t in range(1, T):
+        logpdf += \
+            sps.multivariate_normal.logpdf(y[t], np.dot(F, theta[t]), V) + \
+            sps.multivariate_normal.logpdf(theta[t], np.dot(G, theta[t-1]), W[t])
+
+    return logpdf
+
+
 def rw_likelihood(y, theta, V, W):
     '''
-    Likelihood function of the random walk DLM.
+    Log-likelihood function of the random walk DLM.
 
     Args:
         y: The vector of observations.
         theta: The vector of states.
         V: The observational variance.
-        W: The evolutional variance.
+        W: The evolutional variance or a vector of variances.
 
     Returns:
         The log-likelihood for these observations and parameter values.
@@ -446,7 +478,7 @@ def rw_likelihood(y, theta, V, W):
         sps.norm.logpdf(theta[1:], theta[:-1], np.sqrt(W)).sum()
 
 
-def rw_mle(y, df, numit=20, m0=None, C0=None):
+def rw_mle(y, df, m0=None, C0=None, maxit=100, numeps=1e-9, verbose=False):
     '''
     Obtains maximum likelihood estimates for a Random Walk DLM assuming
     discount factor for the latent state evolution and using coordinate
@@ -457,6 +489,9 @@ def rw_mle(y, df, numit=20, m0=None, C0=None):
         df: Discount factor.
         m0: Passed onto filter_df. Defaults to None.
         C0: Passed onto filter_df. Defaults to None.
+        maxit: Maximum number of iterations. Defaults to 100.
+        numeps: Small numerical value for convergence purposes. Defaults to 10**-9.
+        verbose: Print out information about execution.
 
     Returns:
         theta: The estimates for the states.
@@ -469,13 +504,15 @@ def rw_mle(y, df, numit=20, m0=None, C0=None):
     G = np.array([[1]])
 
     # Initialize values using a run of filter_full
-    a, R, _, _, m, C, _, s, _ = filter_full(y, F, G, 0.7)
+    a, R, _, _, m, C, _, s, _ = filter_full(y, F, G, df)
     pm, _ = smoother(G, a, R, m, C)
-    theta = pm[:, 0]
+    theta = pm[:, 0]  # Get first (and only) state dimension as vector
     V = np.array([[s[-1]]])
 
     # Iterate on maximums
-    for _ in range(numit):
+    for it in range(maxit):
+        old_theta = theta
+
         # Maximum for states is the mean for the normal
         a, R, _, _, m, C, W = filter_df(y, F, G, V, df, m0, C0)
         s, _ = smoother(G, a, R, m, C)
@@ -485,5 +522,14 @@ def rw_mle(y, df, numit=20, m0=None, C0=None):
         # distribution. We have that V | theta, y ~ IG(n, np.sum((y - theta)**2))
         # and the mode is beta / (alpha + 1)
         V[0, 0] = np.sum((y - theta)**2) / theta.size
+
+        # Stop if convergence condition is satisfied
+        if np.sqrt(((theta - old_theta)**2).sum()) < numeps:
+            if verbose:
+                print(f'Convergence condition reached in {it} iterations.')
+            break
+    else:
+        # If the for ends without a break
+        raise ValueError('Convergence not reached')
 
     return theta, V, W
