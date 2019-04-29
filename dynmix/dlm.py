@@ -524,7 +524,63 @@ def rw_mle(y, df, m0=None, C0=None, maxit=100, numeps=1e-9, verbose=False):
         V[0, 0] = np.sum((y - theta)**2) / theta.size
 
         # Stop if convergence condition is satisfied
-        if np.sqrt(((theta - old_theta)**2).sum()) < numeps:
+        if ((theta - old_theta)**2).sum() < numeps**2:
+            if verbose:
+                print(f'Convergence condition reached in {it} iterations.')
+            break
+    else:
+        # If the for ends without a break
+        raise ValueError('Convergence not reached')
+
+    return theta, V, W
+
+
+def mle(y, F, G, df, m0=None, C0=None, maxit=100, numeps=1e-10, verbose=False):
+    '''
+    Obtains maximum likelihood estimates for a Random Walk DLM assuming
+    discount factor for the latent state evolution and using coordinate
+    descent with analytical steps.
+
+    Args:
+        y: The vector of observations.
+        F: The observational matrix.
+        G: The evolutional matrix.
+        df: Discount factor.
+        m0: Passed onto filter_df. Defaults to None.
+        C0: Passed onto filter_df. Defaults to None.
+        maxit: Maximum number of iterations. Defaults to 100.
+        numeps: Small numerical value for convergence purposes. Defaults to 10**-10.
+        verbose: Print out information about execution.
+
+    Returns:
+        theta: The estimates for the states.
+        V: The estimate for the observational variance.
+        W: The fixed values of W.
+    '''
+
+    T = y.shape[0]
+
+    # Initialize values
+    V = np.eye(y.shape[1])
+    theta = np.ones((y.shape[0], G.shape[0]))
+
+    # Iterate on maximums
+    for it in range(maxit):
+        old_theta = theta
+
+        # Maximum for states is the mean for the normal
+        a, R, _, _, m, C, W = filter_df(y, F, G, V, df, m0, C0)
+        theta, _ = smoother(G, a, R, m, C)
+
+        # The observational variance estimator comes from the inverse gamma
+        # distribution. We have that V | theta, y ~ IG(n, np.sum((y - theta)**2))
+        # and the mode is beta / (alpha + 1)
+        V = np.zeros(V.shape)
+        for t in range(T):
+            V += np.diag((y[t] - np.dot(F, theta[t]))**2 / T)
+
+        # Stop if convergence condition is satisfied
+        if ((theta - old_theta)**2).sum() < numeps**2:
             if verbose:
                 print(f'Convergence condition reached in {it} iterations.')
             break
