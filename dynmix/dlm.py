@@ -535,7 +535,7 @@ def rw_mle(y, df, m0=None, C0=None, maxit=100, numeps=1e-9, verbose=False):
     return theta, V, W
 
 
-def mle(y, F, G, df, m0=None, C0=None, maxit=100, numeps=1e-10, verbose=False):
+def mle(y, F, G, df, m0=None, C0=None, maxit=20, numeps=1e-10, verbose=False):
     '''
     Obtains maximum likelihood estimates for a Random Walk DLM assuming
     discount factor for the latent state evolution and using coordinate
@@ -556,6 +556,7 @@ def mle(y, F, G, df, m0=None, C0=None, maxit=100, numeps=1e-10, verbose=False):
         theta: The estimates for the states.
         V: The estimate for the observational variance.
         W: The fixed values of W.
+        converged: Boolean stating if the algorithm converged.
     '''
 
     T = y.shape[0]
@@ -586,6 +587,7 @@ def mle(y, F, G, df, m0=None, C0=None, maxit=100, numeps=1e-10, verbose=False):
             break
     else:
         # If the for ends without a break
-        raise ValueError('Convergence not reached')
+        print(f'Convergence condition NOT reached in {maxit} iterations.')
+        return theta, V, W, False
 
-    return theta, V, W
+    return theta, V, W, True
