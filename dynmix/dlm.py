@@ -581,7 +581,7 @@ def mle(y, F, G, df, m0=None, C0=None, maxit=20, numeps=1e-10, verbose=False):
             V += np.diag((y[t] - np.dot(F, theta[t]))**2 / T)
 
         # Stop if convergence condition is satisfied
-        if ((theta - old_theta)**2).sum() < numeps**2:
+        if np.mean((theta - old_theta)**2) < numeps**2:
             if verbose:
                 print(f'Convergence condition reached in {it} iterations.')
             break
