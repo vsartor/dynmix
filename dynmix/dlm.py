@@ -460,11 +460,14 @@ def likelihood(y, theta, F, G, V, W):
     return logpdf
 
 
-def mle(y, F, G, df, m0=None, C0=None, maxit=20, numeps=1e-10, verbose=False):
+def mle(y, F, G, df=0.7, m0=None, C0=None, maxit=50, numeps=1e-10,
+        verbose=False):
     '''
-    Obtains maximum likelihood estimates for a Random Walk DLM assuming
+    Obtains maximum likelihood estimates for a general DLM assuming
     discount factor for the latent state evolution and using coordinate
     descent with analytical steps.
+
+    Note that the observational matrix is assumed to be constant.
 
     Args:
         y: The vector of observations.
@@ -511,7 +514,99 @@ def mle(y, F, G, df, m0=None, C0=None, maxit=20, numeps=1e-10, verbose=False):
                 print(f'Convergence condition reached in {it} iterations.')
             break
     else:
-        # If the for ends without a break
+        print(f'Convergence condition NOT reached in {maxit} iterations.')
+        return theta, V, W, False
+
+    return theta, V, W, True
+
+
+def weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
+                 numeps=1e-10, verbose=False):
+    '''
+    Obtains weighted maximum likelihood estimates for a general DLM
+    assuming a discount factor for the latent state evolution and using
+    coordinate descent with analytical steps and assuming that the
+    observations are replicated from the same state at each time point.
+
+    Args:
+        y: The vector of observations.
+        F: The observational matrix.
+        G: The evolutional matrix.
+        weights: The weight of each observation.
+        df: Discount factor.
+        m0: Passed onto filter_df. Defaults to None.
+        C0: Passed onto filter_df. Defaults to None.
+        maxit: Maximum number of iterations. Defaults to 100.
+        numeps: Small numerical value for convergence purposes. Defaults to 10**-10.
+        verbose: Print out information about execution.
+
+    Returns:
+        theta: The estimates for the states.
+        V: The estimate for the observational variance.
+        W: The fixed values of W.
+        converged: Boolean stating if the algorithm converged.
+    '''
+
+    # Dimension of a single observation at one time point
+    m = F.shape[0]
+
+    # Number of observations
+    n = y.shape[1] / m
+    if int(n) != n:
+        raise ValueError('Dimension of y not multiple of dimension implied by F')
+    n = int(n)
+
+    # Observation masks: associates observation index with matrix indexes
+    index_mask = {i: range(i * m, (i + 1) * m) for i in range(n)}
+
+    if verbose:
+        print(f'There are {n} observations each with dimension {m}.')
+
+    # Process weight vector
+    if type(weights) in (int, float):
+        weights = np.repeat(weights, n)
+    elif len(weights) != n:
+        raise ValueError('Incorrect length for weight vector')
+
+    # Time dimension
+    T = y.shape[0]
+
+    # State dimension
+    p = F.shape[1]
+
+    # Initialize values
+    vars = np.ones(m)
+    theta = np.ones((T, p))
+
+    # Build the tiled observational matrix
+    FF = np.tile(F, (n, 1))
+
+    # Iterate on maximums
+    for it in range(maxit):
+        old_theta = theta
+
+        # Build weighted observational matrix
+        weighted_vars = np.tile(vars, n) * np.repeat(1 / weights, m)
+        V = np.diag(weighted_vars)
+
+        # Maximum for states is the mean for the normal
+        a, R, _, _, M, C, W = filter_df(y, FF, G, V, df, m0, C0)
+        theta, _ = smoother(G, a, R, M, C)
+
+        # Maximum for the variances
+        vars = np.zeros(m)
+        for i in range(n):
+            mask = index_mask[i]
+            for t in range(T):
+                vars += weights[i] * (y[t,mask] - np.dot(F, theta[t]))**2 / T
+        vars /= weights.sum()
+
+        # Stop if convergence condition is satisfied
+        if np.mean((theta - old_theta)**2) < numeps**2:
+            if verbose:
+                print(f'Convergence condition reached in {it} iterations.')
+            break
+    else:
         print(f'Convergence condition NOT reached in {maxit} iterations.')
         return theta, V, W, False
 

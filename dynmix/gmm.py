@@ -1,7 +1,7 @@
 '''
 This module implements static mixture estimation through the Expectation
 Maximization algorithm. It's a simple atemporal clustering technique
-for comparison.
+included for completeness.
 
 Copyright notice:
     Copyright (c) Victhor S. Sartório. All rights reserved. This
