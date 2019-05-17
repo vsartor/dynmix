@@ -17,6 +17,38 @@ import scipy.stats as sps
 import scipy.optimize as opt
 
 
+def simulate(T, F, G, V, W, theta_init=None):
+    '''
+    Simulates observations for a Dynamic Linear Model.
+
+    Args:
+        T: The size of the time window.
+        F: The observational matrix.
+        G: The evolutional matrix.
+        V: The observational error covariance matrix.
+        W: The evolutional error covariance matrix.
+        theta_init: The value of "theta_0". Defaults to zeros.
+
+    Returns:
+        Y: The observations.
+        theta: The states.
+    '''
+
+    m = F.shape[0]
+    p = F.shape[1]
+
+    theta = np.empty((T, p))
+    Y = np.empty((T, m))
+
+    theta[0] = sps.multivariate_normal.rvs(np.dot(G, theta_init), W)
+    Y[0] = sps.multivariate_normal.rvs(np.dot(F, theta[0]), V)
+    for t in range(1, T):
+        theta[t] = sps.multivariate_normal.rvs(np.dot(G, theta[t-1]), W)
+        Y[t] = sps.multivariate_normal.rvs(np.dot(F, theta[t]), V)
+
+    return Y, theta
+
+
 def filter(Y, F, G, V, W, m0=None, C0=None):
     '''
     Peforms the basic Kalman filter for a Dynamic Linear Model.
