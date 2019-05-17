@@ -11,4 +11,4 @@ Copyright notice:
     this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 '''
 
-from . import dirichlet, dlm, gmm, tscluster, unilevel
+from . import dirichlet, dlm, gmm, static, unilevel
