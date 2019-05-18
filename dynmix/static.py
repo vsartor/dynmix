@@ -193,7 +193,7 @@ def initialize(Y, F_list, G_list):
     return centroids, theta, phi, eta
 
 
-def estimator(Y, F_list, G_list, numit = 100):
+def estimator(Y, F_list, G_list, numit=20, mnumit=100, numeps=1e-6):
     '''
     Uses Expectation-Maximization to estimate statist clusterization of n
     m-variate time-series, all observed throughout the same T time instants.
@@ -202,6 +202,9 @@ def estimator(Y, F_list, G_list, numit = 100):
         Y: A matrix with T rows and n*m columns.
         F_list: A list with k specifications for the F matrix of each cluster.
         G_list: A list with k specifications for the G matrix of each cluster.
+        numit: Number of iterations for the algorithm to run.
+        mnumit: Maximum number of iterations for the M-step algorithm to run.
+        numeps: Numerical precision for the M-step algorithm.
 
     Returns:
         eta: A list with the eta for each time-series.
@@ -228,7 +231,8 @@ def estimator(Y, F_list, G_list, numit = 100):
         eta = compute_weights(Y, F_list, G_list, theta, phi, eta)
         
         for j in range(k):
-            theta[j], V, _, _ = dlm.weighted_mle(Y, F_list[j], G_list[j], eta[:,j])
+            theta[j], V, _, _ = dlm.weighted_mle(Y, F_list[j], G_list[j], eta[:,j],
+                                                 maxit=mnumit, numeps=numeps)
             phi[j,:] = np.diag(V)
 
     # NOTE: Now compute the W in a last-step
@@ -237,7 +241,8 @@ def estimator(Y, F_list, G_list, numit = 100):
 
     eta = compute_weights(Y, F_list, G_list, theta, phi, eta)
     for j in range(k):
-        theta[j], V, W[j], _ = dlm.weighted_mle(Y, F_list[j], G_list[j], eta[:,j])
+        theta[j], V, W[j], _ = dlm.weighted_mle(Y, F_list[j], G_list[j], eta[:,j],
+                                                maxit=mnumit, numeps=numeps)
         phi[j,:] = np.diag(V)
 
     return eta, theta, phi, W

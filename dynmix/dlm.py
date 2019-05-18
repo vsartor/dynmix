@@ -557,7 +557,8 @@ def mle(y, F, G, df=0.7, m0=None, C0=None, maxit=50, numeps=1e-10,
                 print(f'Convergence condition reached in {it} iterations.')
             break
     else:
-        print(f'Convergence condition NOT reached in {maxit} iterations.')
+        if verbose:
+            print(f'Convergence condition NOT reached in {maxit} iterations.')
         return theta, V, W, False
 
     return theta, V, W, True
@@ -670,7 +671,8 @@ def weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
                 print(f'Convergence condition reached in {it} iterations.')
             break
     else:
-        print(f'Convergence condition NOT reached in {maxit} iterations.')
+        if verbose:
+            print(f'Convergence condition NOT reached in {maxit} iterations.')
         return theta, np.diag(vars), W, False
 
     return theta, np.diag(vars), W, True
