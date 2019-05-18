@@ -17,7 +17,7 @@ import scipy.stats as sps
 import scipy.optimize as opt
 
 
-def simulate(T, F, G, V, W, theta_init=None):
+def simulate(T, F, G, V, W, theta_init=None, n=None):
     '''
     Simulates observations for a Dynamic Linear Model.
 
@@ -28,6 +28,7 @@ def simulate(T, F, G, V, W, theta_init=None):
         V: The observational error covariance matrix.
         W: The evolutional error covariance matrix.
         theta_init: The value of "theta_0". Defaults to zeros.
+        n: Number of replicates for observations. Defaults to no replicates.
 
     Returns:
         Y: The observations.
@@ -37,14 +38,24 @@ def simulate(T, F, G, V, W, theta_init=None):
     m = F.shape[0]
     p = F.shape[1]
 
-    theta = np.empty((T, p))
-    Y = np.empty((T, m))
+    if theta_init is None:
+        theta_init = np.zeros(p)
 
-    theta[0] = sps.multivariate_normal.rvs(np.dot(G, theta_init), W)
-    Y[0] = sps.multivariate_normal.rvs(np.dot(F, theta[0]), V)
-    for t in range(1, T):
-        theta[t] = sps.multivariate_normal.rvs(np.dot(G, theta[t-1]), W)
-        Y[t] = sps.multivariate_normal.rvs(np.dot(F, theta[t]), V)
+    theta = np.empty((T, p))
+    Y = np.empty((T, m)) if n is None else np.empty((T, n*m))
+
+    if n is None:
+        theta[0] = sps.multivariate_normal.rvs(np.dot(G, theta_init), W)
+        Y[0] = sps.multivariate_normal.rvs(np.dot(F, theta[0]), V)
+        for t in range(1, T):
+            theta[t] = sps.multivariate_normal.rvs(np.dot(G, theta[t-1]), W)
+            Y[t] = sps.multivariate_normal.rvs(np.dot(F, theta[t]), V)
+    else:
+        theta[0] = sps.multivariate_normal.rvs(np.dot(G, theta_init), W)
+        Y[0] = np.hstack([sps.multivariate_normal.rvs(np.dot(F, theta[0]), V) for i in range(n)])
+        for t in range(1, T):
+            theta[t] = sps.multivariate_normal.rvs(np.dot(G, theta[t-1]), W)
+            Y[t] = np.hstack([sps.multivariate_normal.rvs(np.dot(F, theta[t]), V) for i in range(n)])
 
     return Y, theta
 
