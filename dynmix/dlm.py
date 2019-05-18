@@ -564,7 +564,7 @@ def mle(y, F, G, df=0.7, m0=None, C0=None, maxit=50, numeps=1e-10,
 
 
 def weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
-                 numeps=1e-10, verbose=False):
+                 numeps=1e-10, verbose=False, weighteps=1e-3):
     '''
     Obtains weighted maximum likelihood estimates for a general DLM
     assuming a discount factor for the latent state evolution and using
@@ -580,8 +580,9 @@ def weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
         m0: Passed onto filter_df. Defaults to None.
         C0: Passed onto filter_df. Defaults to None.
         maxit: Maximum number of iterations. Defaults to 100.
-        numeps: Small numerical value for convergence purposes. Defaults to 10**-10.
+        numeps: Small numerical value for convergence purposes. Defaults to 1e-10.
         verbose: Print out information about execution.
+        weighteps: Small value below which weights are considered to be zero. Defaults to 1e-3.
 
     Returns:
         theta: The estimates for the states.
@@ -616,6 +617,25 @@ def weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
 
     # State dimension
     p = F.shape[1]
+
+    # IMPORTANT STEP:
+    # When weights are too small it leads to numerical errors such as division by zero
+    # or very high variances (when vars are divided by the weights). To avoid this,
+    # then the weight is too small to have any effect on the cluster, we will just
+    # remove this observation altogether from estimation.
+
+    good_weight_mask = weights > weighteps
+
+    if verbose:
+        print(f'{np.sum(not good_weight_mask)} observations are being dropped due to low weight.')
+    
+    # Select only observations with good weights
+    good_indexes = [index for i in range(n) for index in index_mask[i] if good_weight_mask[i]]
+    y = y[:,good_indexes]
+
+    # Update the value of `weights` and `n`
+    weights = weights[good_weight_mask]
+    n = len(weights)
 
     # Initialize values
     vars = np.ones(m)
