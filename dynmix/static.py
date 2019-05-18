@@ -52,6 +52,7 @@ def get_dimensions(Y, F_list, G_list):
     n = Y.shape[1] / m
     if n != int(n):
         raise ValueError('Bad dimensions n and m')
+    n = int(n)
 
     # The number of time instants is T and is given by the rows of Y
     T = Y.shape[0]
