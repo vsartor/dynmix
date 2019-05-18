@@ -651,6 +651,6 @@ def weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
             break
     else:
         print(f'Convergence condition NOT reached in {maxit} iterations.')
-        return theta, V, W, False
+        return theta, np.diag(vars), W, False
 
-    return theta, V, W, True
+    return theta, np.diag(vars), W, True
