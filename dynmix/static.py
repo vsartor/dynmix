@@ -1,6 +1,6 @@
 '''
-This module implements a simple level-based time-series mixture model for
-clustering using DLMs for each of the k clusters.
+This module implements time-series mixture model for clustering using
+DLMs for each of the k clusters.
 
 Copyright notice:
     Copyright (c) Victhor S. Sartório. All rights reserved. This
