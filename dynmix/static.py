@@ -106,8 +106,8 @@ def compute_weights(Y, F_list, G_list, theta, phi, eta = None):
     # Compute the mean order of magnitude across everyone
     O_bar = np.mean(np.log10(pdfs))
 
-    # Multiply every pdf by the mean order of magnitude
-    pdfs *= O_bar
+    # Adjust the order of magnitude
+    pdfs *= 10**(-O_bar)
 
     # Perform usual computations based on the entries of pdfs
     weights = np.empty((n, k))
