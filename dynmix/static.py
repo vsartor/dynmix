@@ -181,6 +181,11 @@ def initialize(Y, F_list, G_list):
     
     # Step 3: Now that centroid observations have been picked, initialize the
     # cluster parameters based on MLE estimation which is based purely on them.
+    
+    # TODO: Current ordering is assumed to be arbitrary, which is only true if all
+    # F_j and G_j are the same. When it isn't adjust all k models for all k centroids
+    # and pick the highest likelihood candidate for each model.
+
     for j in range(k):
         theta_est, V_est, _, _ = dlm.mle(Y[:,index_mask[centroids[j]]], F_list[j], G_list[j])
 
