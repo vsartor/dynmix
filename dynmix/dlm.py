@@ -128,7 +128,7 @@ def filter(Y, F, G, V, W, m0=None, C0=None):
     return a, R, f, Q, m, C
 
 
-def filter_df(Y, F, G, V, df=0.9, m0=None, C0=None):
+def filter_df(Y, F, G, V, df=0.7, m0=None, C0=None):
     '''
     Peforms the basic Kalman filter for a Dynamic Linear Model with discount
     factor modelling for the evolutional variance.
@@ -138,7 +138,7 @@ def filter_df(Y, F, G, V, df=0.9, m0=None, C0=None):
         F: The observational matrix.
         G: The evolutional matrix.
         V: The observational error covariance matrix.
-        df: The discount factor. Defaults to 0.9.
+        df: The discount factor. Defaults to 0.7.
         m0: The prior mean for the states. Defaults to zeros.
         C0: The prior covariance for the states. Defaults to a diagonal
             matrix with entries equal to 10**6.
