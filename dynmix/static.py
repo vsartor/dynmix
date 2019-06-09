@@ -14,56 +14,10 @@ import numpy.random as rng
 import scipy.stats as sps
 
 from . import dlm
+from . import common
 
 
-def get_dimensions(Y, F_list, G_list):
-    '''
-    Returns the problem dimensions given the cannonical arguments.
-
-    Args:
-        Y: A matrix with T rows and n*m columns.
-        F_list: A list with k specifications for the F matrix of each cluster.
-        G_list: A list with k specifications for the G matrix of each cluster.
-
-    Returns:
-        k: The number of clusters.
-        m: The dimension of a single observation.
-        p: List with the dimension of state space for each cluster.
-        n: Number of replicates.
-        T: Size of time window.
-        index_mask: A map from the observation index to the corresponding Y indexes.
-    '''
-
-    # The number of clusters
-    k = len(F_list)
-
-    # The dimension of a single observation is m, and is given by F
-    # Note that all F should have the same number of rows, since only
-    # state dimension can vary from cluster to cluster
-    m = F_list[0].shape[0]
-
-    # The dimension of the states for each cluster is given by the number
-    # of columns in each F
-    p = [F.shape[1] for F in F_list]
-
-    # The number of replicates is n. Since the number of columns for y is
-    # n*m we need only to divide and perform a small check to make sure
-    # everything is ok.
-    n = Y.shape[1] / m
-    if n != int(n):
-        raise ValueError('Bad dimensions n and m')
-    n = int(n)
-
-    # The number of time instants is T and is given by the rows of Y
-    T = Y.shape[0]
-
-    # Create a map associating the observation index with indexes in Y
-    index_mask = {i: range(i * m, (i + 1) * m) for i in range(n)}
-
-    return k, m, p, n, T, index_mask
-
-
-def compute_weights(Y, F_list, G_list, theta, phi, eta = None):
+def compute_weights(Y, F_list, G_list, theta, phi, eta=None):
     '''
     Compute the membership weights of the mixture model. This is essentially a
     function for the result of the E-step of the static mixture of DLMs model.
@@ -82,7 +36,7 @@ def compute_weights(Y, F_list, G_list, theta, phi, eta = None):
 
     #-- Preamble
 
-    k, _, _, n, T, idxmap = get_dimensions(Y, F_list, G_list)
+    k, _, _, n, T, idxmap = common.get_dimensions(Y, F_list, G_list)
     weights = np.empty((n, k))
 
     if eta is None:
@@ -145,7 +99,7 @@ def initialize(Y, F_list, G_list):
 
     #-- Initialization
 
-    k, m, p, n, T, index_mask = get_dimensions(Y, F_list, G_list)
+    k, m, p, n, T, index_mask = common.get_dimensions(Y, F_list, G_list)
 
     # Allocate space for parameters
     theta = [np.empty((T, p[j])) for j in range(k)]
@@ -227,7 +181,7 @@ def estimator(Y, F_list, G_list, numit=20, mnumit=100, numeps=1e-6):
 
     #-- Preamble 
 
-    k, _, p, _, T, _ = get_dimensions(Y, F_list, G_list)
+    k, _, p, _, T, _ = common.get_dimensions(Y, F_list, G_list)
     _, theta, phi, eta = initialize(Y, F_list, G_list)
 
     #-- Algorithm
@@ -345,7 +299,7 @@ def sampler(Y, F_list, G_list, numit=2000, ord_time=0):
 
     #-- Preamble 
 
-    k, m, p, n, T, index_map = get_dimensions(Y, F_list, G_list)
+    k, m, p, n, T, index_map = common.get_dimensions(Y, F_list, G_list)
     _, theta, phi, eta = initialize(Y, F_list, G_list)
     Z = compute_weights(Y, F_list, G_list, theta, phi, eta).argmax(axis=1)
     chains = StaticSamplerResult(numit, k, m, p, n, T)
