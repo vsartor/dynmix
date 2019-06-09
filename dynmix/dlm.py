@@ -209,6 +209,90 @@ def filter_df(Y, F, G, V, df=0.7, m0=None, C0=None):
     return a, R, f, Q, m, C, W
 
 
+def filter_df_dw(Y, F, G, V, df=0.7, m0=None, C0=None):
+    '''
+    Peforms the basic Kalman filter for a Dynamic Linear Model with discount
+    factor modelling for the evolutional variance. This version accepts time-varying
+    F and V and time-varying dimensions on Y.
+
+    Args:
+        Y: List with the observations at each time instant.
+        F: List of observational matrices.
+        G: The evolutional matrix.
+        V: List of observational error covariance matrices.
+        df: The discount factor. Defaults to 0.7.
+        m0: The prior mean for the states. Defaults to zeros.
+        C0: The prior covariance for the states. Defaults to a diagonal
+            matrix with entries equal to 10**6.
+
+    Returns:
+        a: Prior means.
+        R: Prior covariances.
+        f: One-step ahead forecast means.
+        Q: One-step ahead forecast covariances.
+        m: Online means.
+        C: Online covariances.
+        W: Imposed values for W.
+    '''
+
+    T = len(Y)
+    p = G.shape[0]
+    n = [len(y) for y in Y]
+
+    # TODO: Since this is an internal function consistency check, remove this once working.
+    for t in range(T):
+        if V[t].shape[0] != n[t] or V[t].shape[1] != n[t]:
+            raise ValueError("V dimension mismatch")
+        if F[t].shape[0] != n[t] or F[t].shape[1] != p:
+            raise ValueError("F dimension mismatch")
+    
+    if G.shape[1] != p:
+        raise ValueError("G dimension mismatch")
+
+    if m0 is None:
+        m0 = np.zeros(p)
+    elif type(m0) in [float, int]:
+        m0 = np.ones(p) * m0
+
+    if C0 is None:
+        C0 = np.eye(p) * 10**6
+    elif type(C0) in [float, int]:
+        C0 = np.eye(p) * C0
+
+    a = np.empty((T, p))
+    R = np.empty((T, p, p))
+    m = np.empty((T, p))
+    C = np.empty((T, p, p))
+    W = np.empty((T, p, p))
+
+    a[0] = np.dot(G, m0)
+    P = np.dot(np.dot(G, C0), G.T)
+    W[0] = P * (1 - df) / df
+    R[0] = np.dot(np.dot(G, C0), G.T) + W[0]
+    f = np.dot(F[0], a[0])
+    Q = np.dot(np.dot(F[0], R[0]), F[0].T) + V
+    e = Y[0] - f
+    Qinv = np.linalg.inv(Q)
+    A = np.dot(np.dot(R[0], F[0].T), Qinv)
+    m[0] = a[0] + np.dot(A, e)
+    C[0] = R[0] - np.dot(np.dot(A, Q), A.T)
+
+    for t in range(1, T):
+        a[t] = np.dot(G, m[t-1])
+        P = np.dot(np.dot(G, C[t-1]), G.T)
+        W[t] = P * (1 - df) / df
+        R[t] = np.dot(np.dot(G, C[t-1]), G.T) + W[t]
+        f = np.dot(F[t], a[t])
+        Q = np.dot(np.dot(F[t], R[t]), F[t].T) + V
+        e = Y[t] - f
+        Qinv = np.linalg.inv(Q)
+        A = np.dot(np.dot(R[t], F[t].T), Qinv)
+        m[t] = a[t] + np.dot(A, e)
+        C[t] = R[t] - np.dot(np.dot(A, Q), A.T)
+
+    return a, R, m, C, W
+
+
 def multi_filter(Y, F, G, V, W, m0=None, C0=None):
     '''
     Peforms filtering for univariate observational specifications
@@ -667,6 +751,125 @@ def weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
 
         # Stop if convergence condition is satisfied
         if np.mean((theta - old_theta)**2) < numeps**2:
+            if verbose:
+                print(f'Convergence condition reached in {it} iterations.')
+            break
+    else:
+        if verbose:
+            print(f'Convergence condition NOT reached in {maxit} iterations.')
+        return theta, np.diag(vars), W, False
+
+    return theta, np.diag(vars), W, True
+
+
+def dynamic_weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
+                         numeps=1e-10, verbose=False, weighteps=1e-3):
+    '''
+    Obtains weighted maximum likelihood estimates for a general DLM
+    assuming a discount factor for the latent state evolution and using
+    coordinate descent with analytical steps and assuming that the
+    observations are replicated from the same state at each time point.
+
+    Args:
+        y: The vector of observations.
+        F: The observational matrix.
+        G: The evolutional matrix.
+        weights: The weight of each observation at each time instant.
+        df: Discount factor.
+        m0: Passed onto filter_df. Defaults to None.
+        C0: Passed onto filter_df. Defaults to None.
+        maxit: Maximum number of iterations. Defaults to 100.
+        numeps: Small numerical value for convergence purposes. Defaults to 1e-10.
+        verbose: Print out information about execution.
+        weighteps: Small value below which weights are considered to be zero. Defaults to 1e-3.
+
+    Returns:
+        theta: The estimates for the states.
+        V: The estimate for the observational variance.
+        W: The fixed values of W.
+        converged: Boolean stating if the algorithm converged.
+    '''
+
+    # Dimension of a single observation at one time point
+    m = F.shape[0]
+
+    # Number of observations
+    n = y.shape[1] / m
+    if int(n) != n:
+        raise ValueError('Dimension of y not multiple of dimension implied by F')
+    n = int(n)
+
+    # Observation masks: associates observation index with matrix indexes
+    index_mask = {i: range(i * m, (i + 1) * m) for i in range(n)}
+
+    if verbose:
+        print(f'There are {n} observations each with dimension {m}.')
+
+    # Time dimension
+    T = y.shape[0]
+
+    # State dimension
+    p = F.shape[1]
+
+    # Validate weight vector
+    if type(weights) in (int, float):
+        raise ValueError('Expected a 2-dimension array, got atomic value.')
+    elif type(weights) != np.ndarray:
+        raise ValueError('Expected a 2-dimenasional ndarray.')
+    elif weights.shape != (T, n):
+        raise ValueError(f'Unexpected shape for weights. Expected {(T,n)}, got {weights.shape}.')
+
+    # IMPORTANT STEP:
+    # See "IMPORTANT STEP" at weighted_mle. The difference is that here we need to do this for
+    # each time instant.
+
+    good_n = []
+    good_y = []
+    good_weights = []
+
+    for t in range(T):
+        good_weight_mask = weights[t] > weighteps
+
+        if verbose:
+            print(f'{np.sum(not good_weight_mask)} observations are being dropped at time {t}.')
+        
+        # Select only observations with good weights
+        good_indexes = [index for i in range(n) for index in index_mask[i] if good_weight_mask[i]]
+        good_y.append(y[:,good_indexes])
+
+        # Update the value of `weights` and `n`
+        good_weights.append(weights[t,good_weight_mask])
+        good_n.append(len(good_weights[t]))
+
+    # Initialize values
+    vars = np.ones(m)
+    theta = np.ones((T, p))
+
+    # Build the tiled observational matrix
+    FF = [np.tile(F, (n, 1)) for n in good_n]
+
+    # Iterate on maximums
+    for it in range(maxit):
+        old_theta = theta
+
+        # Build weighted observational matrix
+        weighted_vars = [np.tile(vars, n) * np.repeat(1 / weights, m) for weights in good_weights]
+        V = [np.diag(weighted_var) for weighted_var in weighted_vars]
+
+        # Maximum for states is the mean for the normal
+        a, R, M, C, W = filter_df_dw(y, FF, G, V, df, m0, C0)
+        theta, _ = smoother(G, a, R, M, C)
+
+        # Maximum for the variances
+        vars = np.zeros(m)
+        for i in range(n):
+            mask = index_mask[i]
+            for t in range(T):
+                vars += weights[i] * (y[t,mask] - np.dot(F, theta[t]))**2 / T
+        vars /= weights.sum()
+
+        # Stop if convergence condition is satisfied
+        if np.abs(theta - old_theta).mean() < numeps:
             if verbose:
                 print(f'Convergence condition reached in {it} iterations.')
             break
