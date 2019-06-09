@@ -21,7 +21,6 @@ def estimator(y, k, delta, init_level, numit=10):
     '''
     Obtain point estimates for a simple univariate first-order polynomial
     DLM dynamic clustering.
-
     Args:
         y: An array with each row being the time-series from one
            observational unit.
@@ -30,7 +29,6 @@ def estimator(y, k, delta, init_level, numit=10):
         k: Number of clusters.
         init_level: The initial level of each cluster.
         numit: Number of iterations for the algorithm to run.
-
     Returns:
         The evolution of the estimates for each parameter.
     '''
