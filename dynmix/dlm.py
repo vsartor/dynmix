@@ -270,7 +270,7 @@ def filter_df_dw(Y, F, G, V, df=0.7, m0=None, C0=None):
     W[0] = P * (1 - df) / df
     R[0] = np.dot(np.dot(G, C0), G.T) + W[0]
     f = np.dot(F[0], a[0])
-    Q = np.dot(np.dot(F[0], R[0]), F[0].T) + V
+    Q = np.dot(np.dot(F[0], R[0]), F[0].T) + V[0]
     e = Y[0] - f
     Qinv = np.linalg.inv(Q)
     A = np.dot(np.dot(R[0], F[0].T), Qinv)
@@ -283,7 +283,7 @@ def filter_df_dw(Y, F, G, V, df=0.7, m0=None, C0=None):
         W[t] = P * (1 - df) / df
         R[t] = np.dot(np.dot(G, C[t-1]), G.T) + W[t]
         f = np.dot(F[t], a[t])
-        Q = np.dot(np.dot(F[t], R[t]), F[t].T) + V
+        Q = np.dot(np.dot(F[t], R[t]), F[t].T) + V[t]
         e = Y[t] - f
         Qinv = np.linalg.inv(Q)
         A = np.dot(np.dot(R[t], F[t].T), Qinv)
@@ -835,7 +835,7 @@ def dynamic_weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
         
         # Select only observations with good weights
         good_indexes = [index for i in range(n) for index in index_mask[i] if good_weight_mask[i]]
-        good_y.append(y[:,good_indexes])
+        good_y.append(y[t,good_indexes])
 
         # Update the value of `weights` and `n`
         good_weights.append(weights[t,good_weight_mask])
@@ -853,19 +853,20 @@ def dynamic_weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
         old_theta = theta
 
         # Build weighted observational matrix
-        weighted_vars = [np.tile(vars, n) * np.repeat(1 / weights, m) for weights in good_weights]
+        weighted_vars = [np.tile(vars, good_n[t]) * np.repeat(1 / good_weights[t], m)
+                         for t in range(T)]
         V = [np.diag(weighted_var) for weighted_var in weighted_vars]
 
         # Maximum for states is the mean for the normal
-        a, R, M, C, W = filter_df_dw(y, FF, G, V, df, m0, C0)
+        a, R, M, C, W = filter_df_dw(good_y, FF, G, V, df, m0, C0)
         theta, _ = smoother(G, a, R, M, C)
 
         # Maximum for the variances
         vars = np.zeros(m)
-        for i in range(n):
-            mask = index_mask[i]
-            for t in range(T):
-                vars += weights[i] * (y[t,mask] - np.dot(F, theta[t]))**2 / T
+        for t in range(T):
+            for i in range(good_n[t]):
+                mask = index_mask[i]
+                vars += good_weights[t][i] * (good_y[t][mask] - np.dot(F, theta[t]))**2 / T
         vars /= weights.sum()
 
         # Stop if convergence condition is satisfied
