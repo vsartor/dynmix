@@ -191,7 +191,7 @@ def sampler(Y, F_list, G_list, numit=2000, ord_time=0):
             F = np.tile(F_list[j], (member_n, 1))
             V = np.diag(np.tile(1.0 / phi[j], member_n))
 
-            a, R, _, _, M, C, W[j][:,:,:] = dlm.filter_df(member_Y, F, G, V)
+            a, R, M, C, W[j][:,:,:] = dlm.filter_df(member_Y, F, G, V)
             M, C = dlm.smoother(G, a, R, M, C)
 
             obs_error = np.ones(m)

@@ -146,8 +146,6 @@ def filter_df(Y, F, G, V, df=0.7, m0=None, C0=None):
     Returns:
         a: Prior means.
         R: Prior covariances.
-        f: One-step ahead forecast means.
-        Q: One-step ahead forecast covariances.
         m: Online means.
         C: Online covariances.
         W: Imposed values for W.
@@ -175,8 +173,6 @@ def filter_df(Y, F, G, V, df=0.7, m0=None, C0=None):
 
     a = np.empty((T, p))
     R = np.empty((T, p, p))
-    f = np.empty((T, n))
-    Q = np.empty((T, n, n))
     m = np.empty((T, p))
     C = np.empty((T, p, p))
     W = np.empty((T, p, p))
@@ -185,31 +181,31 @@ def filter_df(Y, F, G, V, df=0.7, m0=None, C0=None):
     P = np.dot(np.dot(G, C0), Gt)
     W[0] = P * (1 - df) / df
     R[0] = np.dot(np.dot(G, C0), Gt) + W[0]
-    f[0] = np.dot(F, a[0])
-    Q[0] = np.dot(np.dot(F, R[0]), Ft) + V
-    e = Y[0] - f[0]
-    Qinv = np.linalg.inv(Q[0])
+    f = np.dot(F, a[0])
+    Q = np.dot(np.dot(F, R[0]), Ft) + V
+    e = Y[0] - f
+    Qinv = np.linalg.inv(Q)
     A = np.dot(np.dot(R[0], Ft), Qinv)
     m[0] = a[0] + np.dot(A, e)
-    C[0] = R[0] - np.dot(np.dot(A, Q[0]), A.T)
+    C[0] = R[0] - np.dot(np.dot(A, Q), A.T)
 
     for t in range(1, T):
         a[t] = np.dot(G, m[t-1])
         P = np.dot(np.dot(G, C[t-1]), Gt)
         W[t] = P * (1 - df) / df
         R[t] = np.dot(np.dot(G, C[t-1]), Gt) + W[t]
-        f[t] = np.dot(F, a[t])
-        Q[t] = np.dot(np.dot(F, R[t]), Ft) + V
-        e = Y[t] - f[t]
-        Qinv = np.linalg.inv(Q[t])
+        f = np.dot(F, a[t])
+        Q = np.dot(np.dot(F, R[t]), Ft) + V
+        e = Y[t] - f
+        Qinv = np.linalg.inv(Q)
         A = np.dot(np.dot(R[t], Ft), Qinv)
         m[t] = a[t] + np.dot(A, e)
-        C[t] = R[t] - np.dot(np.dot(A, Q[t]), A.T)
+        C[t] = R[t] - np.dot(np.dot(A, Q), A.T)
 
-    return a, R, f, Q, m, C, W
+    return a, R, m, C, W
 
 
-def filter_df_dw(Y, F, G, V, df=0.7, m0=None, C0=None):
+def filter_df_dyn(Y, F, G, V, df=0.7, m0=None, C0=None):
     '''
     Peforms the basic Kalman filter for a Dynamic Linear Model with discount
     factor modelling for the evolutional variance. This version accepts time-varying
@@ -356,173 +352,6 @@ def multi_filter(Y, F, G, V, W, m0=None, C0=None):
     return a, R, m, C
 
 
-def filter_full(Y, F, G, df=0.8, m0=None, C0=None, l0=None, s0=None):
-    '''
-    Peforms Kalman filtering with online inference for observational variance
-    and discount factors for a Dynamic Linear Model.
-
-    Args:
-        Y: The matrix of observations, with an observation in each row. Only
-           supports univariate observations for the time being.
-        F: The observational matrix.
-        G: The evolutional matrix.
-        df: The discount factor. Defaults to 0.9.
-        m0: The prior mean for the states. Defaults to zeros.
-        C0: The prior covariance for the states. Defaults to a diagonal
-            matrix with entries equal to 10**6.
-        l0: The prior 'number of entries' for observational variance.
-        s0: The prior expected value for observational variance.
-
-    Returns:
-        Eight arrays - the prior means and covariances, a and R, the one
-        step ahead forecast means and covariances, f and R, the
-        online means and covariances, m and C, and the online 'number of
-        observations' and estimates for observational variance, l and s.
-    '''
-
-    T = Y.shape[0]
-    n, p = F.shape
-    Gt = G.T
-    Ft = F.T
-
-    if Y.shape[1] != 1:
-        raise ValueError("Only the univariate case is supported for now")
-    if Y.shape[1] != n:
-        raise ValueError("F dimension mismatch")
-    if G.shape[0] != p or G.shape[1] != p:
-        raise ValueError("G dimension mismatch")
-
-    if m0 is None:
-        m0 = np.zeros(p)
-    if C0 is None:
-        C0 = np.diag(np.ones(p)) * 10**6
-    if l0 is None:
-        l0 = 1
-    if s0 is None:
-        s0 = np.abs(Y[0, 0])
-
-    a = np.empty((T, p))
-    R = np.empty((T, p, p))
-    f = np.empty(T)
-    Q = np.empty(T)
-    m = np.empty((T, p))
-    C = np.empty((T, p, p))
-    l = np.empty(T)
-    s = np.empty(T)
-    W = np.empty(T)
-
-    a[0] = np.dot(G, m0)
-    P = np.dot(np.dot(G, C0), Gt)
-    W[0] = P * (1 - df) / df
-    R[0] = P + W[0]
-    f[0] = np.dot(F, a[0])
-    Q[0] = np.dot(np.dot(F, R[0]), Ft) + s0
-    e = Y[0] - f[0]
-    A = np.dot(R[0], Ft) / Q[0]
-    m[0] = a[0] + np.dot(A, e)
-    l[0] = l0 + 1
-    s[0] = s0 + s0 / l[0] * (e**2 / Q[0] - 1)
-    C[0] = (R[0] - Q[0] * np.dot(A, A.T)) * s[0] / s0
-
-    for t in range(1, T):
-        a[t] = np.dot(G, m[t-1])
-        P = np.dot(np.dot(G, C[t-1]), Gt)
-        W[t] = P * (1 - df) / df
-        R[t] = P + W[t]
-        f[t] = np.dot(F, a[t])
-        Q[t] = np.dot(np.dot(F, R[t]), Ft) + s[t-1]
-        e = Y[t] - f[t]
-        A = np.dot(R[t], Ft) / Q[t]
-        m[t] = a[t] + np.dot(A, e)
-        l[t] = l[t-1] + 1
-        s[t] = s[t-1] + s[t-1] / l[t] * (e**2 / Q[t] - 1)
-        C[t] = (R[t] - Q[t] * np.dot(A, A.T)) * s[t] / s[t-1]
-
-    return a, R, f, Q, m, C, l, s, W
-
-
-def filter_partial(Y, F, G, W, m0=None, C0=None, l0=None, s0=None):
-    '''
-    Peforms Kalman filtering with online inference for observational variance
-    for a Dynamic Linear Model.
-
-    Args:
-        Y: The matrix of observations, with an observation in each row. Only
-           supports univariate observations for the time being.
-        F: The observational matrix.
-        G: The evolutional matrix.
-        W: The evolutional covariance matrix.
-        m0: The prior mean for the states. Defaults to zeros.
-        C0: The prior covariance for the states. Defaults to a diagonal
-            matrix with entries equal to 10**6.
-        l0: The prior 'number of entries' for observational variance.
-        s0: The prior expected value for observational variance.
-
-    Returns:
-        Eight arrays - the prior means and covariances, a and R, the one
-        step ahead forecast means and covariances, f and R, the
-        online means and covariances, m and C, and the online 'number of
-        observations' and estimates for observational variance, l and s.
-    '''
-
-    T = Y.shape[0]
-    n, p = F.shape
-    Gt = G.T
-    Ft = F.T
-
-    if Y.shape[1] != 1:
-        raise ValueError("Only the univariate case is supported for now")
-    if Y.shape[1] != n:
-        raise ValueError("F dimension mismatch")
-    if G.shape[0] != p or G.shape[1] != p:
-        raise ValueError("G dimension mismatch")
-    if W.shape[0] != p or W.shape[1] != p:
-        raise ValueError("W dimension mismatch")
-
-    if m0 is None:
-        m0 = np.zeros(p)
-    if C0 is None:
-        C0 = np.eye(p) * 10**6
-    if l0 is None:
-        l0 = 1
-    if s0 is None:
-        s0 = np.abs(Y[0, 0])
-
-    a = np.empty((T, p))
-    R = np.empty((T, p, p))
-    f = np.empty(T)
-    Q = np.empty(T)
-    m = np.empty((T, p))
-    C = np.empty((T, p, p))
-    l = np.empty(T)
-    s = np.empty(T)
-
-    a[0] = np.dot(G, m0)
-    R[0] = np.dot(np.dot(G, C0), Gt) + W
-    f[0] = np.dot(F, a[0])
-    Q[0] = np.dot(np.dot(F, R[0]), Ft) + s0
-    e = Y[0] - f[0]
-    A = np.dot(R[0], Ft) / Q[0]
-    m[0] = a[0] + np.dot(A, e)
-    l[0] = l0 + 1
-    s[0] = s0 + s0 / l[0] * (e**2 / Q[0] - 1)
-    C[0] = (R[0] - Q[0] * np.dot(A, A.T)) * s[0] / s0
-
-    for t in range(1, T):
-        a[t] = np.dot(G, m[t-1])
-        R[t] = np.dot(np.dot(G, C[t-1]), Gt) + W
-        f[t] = np.dot(F, a[t])
-        Q[t] = np.dot(np.dot(F, R[t]), Ft) + s[t-1]
-        e = Y[t] - f[t]
-        A = np.dot(R[t], Ft) / Q[t]
-        m[t] = a[t] + np.dot(A, e)
-        l[t] = l[t-1] + 1
-        s[t] = s[t-1] + s[t-1] / l[t] * (e**2 / Q[t] - 1)
-        C[t] = (R[t] - Q[t] * np.dot(A, A.T)) * s[t] / s[t-1]
-
-    return a, R, f, Q, m, C, l, s
-
-
 def smoother(G, a, R, m, C):
     '''
     Peforms basic Kalman smoothing for a Dynamic Linear Model.
@@ -625,7 +454,7 @@ def mle(y, F, G, df=0.7, m0=None, C0=None, maxit=50, numeps=1e-10,
         old_theta = theta
 
         # Maximum for states is the mean for the normal
-        a, R, _, _, m, C, W = filter_df(y, F, G, V, df, m0, C0)
+        a, R, m, C, W = filter_df(y, F, G, V, df, m0, C0)
         theta, _ = smoother(G, a, R, m, C)
 
         # The observational variance estimator comes from the inverse gamma
@@ -738,7 +567,7 @@ def weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
         V = np.diag(weighted_vars)
 
         # Maximum for states is the mean for the normal
-        a, R, _, _, M, C, W = filter_df(y, FF, G, V, df, m0, C0)
+        a, R, M, C, W = filter_df(y, FF, G, V, df, m0, C0)
         theta, _ = smoother(G, a, R, M, C)
 
         # Maximum for the variances
@@ -858,7 +687,7 @@ def dynamic_weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
         V = [np.diag(weighted_var) for weighted_var in weighted_vars]
 
         # Maximum for states is the mean for the normal
-        a, R, M, C, W = filter_df_dw(good_y, FF, G, V, df, m0, C0)
+        a, R, M, C, W = filter_df_dyn(good_y, FF, G, V, df, m0, C0)
         theta, _ = smoother(G, a, R, M, C)
 
         # Maximum for the variances
