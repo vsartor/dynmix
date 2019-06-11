@@ -19,7 +19,7 @@ from . import common
 
 def estimator(Y, F_list, G_list, numit=20, mnumit=100, numeps=1e-6):
     '''
-    Uses Expectation-Maximization to estimate statist clusterization of n
+    Uses Expectation-Maximization to estimate static clusterization of n
     m-variate time-series, all observed throughout the same T time instants.
 
     Args:
