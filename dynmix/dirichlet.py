@@ -132,10 +132,14 @@ def mod_dirichlet_parameters(c, delta, eta):
     alpha = delta * c_sum
     beta = (1 - delta) * c_sum
 
-    if alpha < 1 or beta < 1:
+    if alpha < 1 and beta < 1:
         raise RuntimeError('Invalid mode for S')
-
-    s = (alpha - 1) / (alpha + beta - 2)
+    elif alpha <= 1:
+        s = 0
+    elif beta <= 1:
+        s = 1
+    else:
+        s = (alpha - 1) / (alpha + beta - 2)
 
     # Step 2. Calculate the arguments as a function of the mode for S
 
