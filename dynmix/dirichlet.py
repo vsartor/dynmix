@@ -14,25 +14,32 @@ import numpy as np
 import numpy.random as npr
 
 
-def forward_filter(y, delta, c0):
+def forward_filter(Y, delta, c0):
     '''
     Performs forward filtering algorithm for a Dirichlet process as
     proposed in Fonseca & Ferreira (2017).
 
     Args:
-        y: The matrix of observations from a multinomial distribution.
-        delta: The discount factor for the model.
+        Y: The matrix of observations from a multinomial distribution.
+        delta: The discount factor.
         c0: The prior knowledge about the Dirichlet process.
 
     Returns:
-        The matrix c containing parameters of the online distribution
+        c: The matrix containing parameters of the online distribution
         of the Dirichlet states.
     '''
-    n, k = y.shape
+
+    #-- Preamble
+
+    n, k = Y.shape
     c = np.empty((n, k))
-    c[0] = delta * c0 + y[0]
+
+    #-- Algorithm
+
+    c[0] = delta * c0 + Y[0]
     for t in range(1, n):
-        c[t] = delta * c[t-1] + y[t]
+        c[t] = delta * c[t-1] + Y[t]
+
     return c
 
 
@@ -42,23 +49,29 @@ def backwards_sampler(c, delta):
     proposed in Fonseca & Ferreira (2017).
 
     Args:
-        c: The online distribution parameters obtained from forward
-           filtering.
-        delta: The discount factor for the model.
+        c: The resulting matrix from foward filtering.
+        delta: The discount factor.
 
     Returns:
-        A matrix containing samples from the posterior distribution
-        of the Dirichlet states.
+        eta: A sample from the posterior distribution.
     '''
+
+    #-- Preamble
+
     n = c.shape[0]
-    omega = np.empty(c.shape)
-    omega[n-1] = npr.dirichlet(c[n-1], 1)[0]
+    eta = np.empty(c.shape)
+
+    #-- Algorithm
+
+    eta[n-1] = npr.dirichlet(c[n-1], 1)[0]
+
     for t in range(n-1, 0, -1):
         csum = c[t-1].sum()
         S = npr.beta(delta * csum, (1 - delta) * csum)
         u = npr.dirichlet((1 - delta) * c[t-1], 1)[0]
-        omega[t-1] = S * omega[t] + (1 - S) * u
-    return omega
+        eta[t-1] = S * eta[t] + (1 - S) * u
+    
+    return eta
 
 
 def mod_dirichlet_mean(c, a, b):
@@ -77,31 +90,58 @@ def mod_dirichlet_mean(c, a, b):
     return (b - a) * c / c.sum() + a
 
 
-def mod_dirichlet_parameters(c, delta, omega):
+def mod_dirichlet_mode(c, a, b):
     '''
-    Returns the parameter set for the Mod-Dirichlet from
-    Proposition 3.2. Internal helper function.
+    Returns the mode of a Mod-Dirichlet distribution from Appendix A.
 
     Args:
-        c: The information parameter for the time of interest.
-        delta: Discount factor for the model.
-        omega: The mode from one time instant ahead.
+        c: The Dirichlet parameter.
+        a: The minimum parameter.
+        b: The maximum parameter.
+
+    Returns:
+        The mean vector.
     '''
 
-    k = omega.size
+    if np.any(c < 1):
+        raise RuntimeError('Invalid dirichlet mode')
+
+    dirichlet_mode = (c - 1) / (c.sum() - c.size)
+    return (b - a) * dirichlet_mode + a
+
+
+def mod_dirichlet_parameters(c, delta, eta):
+    '''
+    Returns the parameter set for the Mod-Dirichlet from
+    Proposition 3.2.
+
+    Args:
+        c: The foward filtering result for the time of interest.
+        delta: Discount factor.
+        eta: The mode from one time instant ahead.
+
+    Returns:
+        The parameter set c, a, b.
+    '''
+
+    k = eta.size
 
     # Step 1. Calculate the mode for S
 
     c_sum = c.sum()
     alpha = delta * c_sum
     beta = (1 - delta) * c_sum
-    s = alpha / (alpha + beta)
 
-    # Step 2. Calculate the arguments as a function of the mean for S
+    if alpha < 1 or beta < 1:
+        raise RuntimeError('Invalid mode for S')
+
+    s = (alpha - 1) / (alpha + beta - 2)
+
+    # Step 2. Calculate the arguments as a function of the mode for S
 
     c = (1 - delta) * c
-    a = s * omega
-    b = (1 - s) * np.ones(k) + s * omega
+    a = s * eta
+    b = (1 - s) * np.ones(k) + s * eta
 
     return c, a, b
 
@@ -109,34 +149,31 @@ def mod_dirichlet_parameters(c, delta, omega):
 def backwards_estimator(c, delta):
     '''
     Instead of performing usual backwards sampling, it iterates
-    backwards picking values for omega according to the mean of
-    the distribution, i.e. it takes the means instead of generating
-    samples.
+    backwards picking values for omega according to the mode of
+    the distribution.
 
     Args:
-        c: The online distribution parameters obtained from forward
-           filtering.
-        delta: The discount factor for the model.
+        c: The resulting matrix from forward filtering.
+        delta: The discount factor.
 
     Returns:
-        A matrix containing means from the posterior distribution
-        of the Dirichlet states.
+        eta: A matrix containing modes from the posterior distribution.
     '''
 
     n = c.shape[0]
-    omega = np.empty(c.shape)
+    eta = np.empty(c.shape)
 
-    # For the last omega's distribution we can do it directly since
+    # For the last eta's distribution we can do it directly since
     # it's a known Dirichlet(c[n-1]), and writtn as a Mod-Dirichlet
     # it is Mod-Dirichlet(c[n-1], 0, 1).
 
-    omega[n-1] = mod_dirichlet_mean(c[n-1], 0, 1)
+    eta[n-1] = mod_dirichlet_mean(c[n-1], 0, 1)
 
     # For the other ones we need to find the Mod-Dirichlet parameters
     # conditional the previous mode being the real value.
 
     for t in range(n-2, -1, -1):
-        params = mod_dirichlet_parameters(c[t], delta, omega[t+1])
-        omega[t] = mod_dirichlet_mean(*params)
+        params = mod_dirichlet_parameters(c[t], delta, eta[t+1])
+        eta[t] = mod_dirichlet_mean(*params)
 
-    return omega
+    return eta
