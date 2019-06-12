@@ -224,8 +224,6 @@ def filter_df_dyn(Y, F, G, V, df=0.7, m0=None, C0=None):
     Returns:
         a: Prior means.
         R: Prior covariances.
-        f: One-step ahead forecast means.
-        Q: One-step ahead forecast covariances.
         m: Online means.
         C: Online covariances.
         W: Imposed values for W.
