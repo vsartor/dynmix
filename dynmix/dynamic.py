@@ -163,7 +163,7 @@ def sampler(Y, F_list, G_list, delta, numit=2000):
     Z = common.compute_weights_dyn(Y, F_list, G_list, theta, phi, eta).argmax(axis=2)
     chains = DynamicSamplerResult(numit, k, m, p, n, T)
 
-    c0 = np.ones(k) * 0.5
+    c0 = np.ones(k) * 0.1
 
     # Allocate memory for W
     W = [np.empty((T, p[j], p[j])) for j in range(k)]
