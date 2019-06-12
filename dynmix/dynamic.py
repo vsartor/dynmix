@@ -187,8 +187,6 @@ def sampler(Y, F_list, G_list, delta, numit=2000):
 
         # Sample for theta, W, phi
 
-        # REWRITE THIS BLOCK! HERE THE SIZE OF Y AT EACH TIME-STEP VARIES
-        # USE FILTER_DF_DYN!!!
         for j in range(k):
             member_n = np.empty(T, dtype=np.int)
             member_Y = []
@@ -204,7 +202,7 @@ def sampler(Y, F_list, G_list, delta, numit=2000):
 
             G = G_list[j]
             F = [np.tile(F_list[j], (n, 1)) for n in member_n]
-            V = [np.diag(np.tile(phi[j], n)) for n in member_n]
+            V = [np.diag(np.tile(1.0 / phi[j], n)) for n in member_n]
 
             a, R, M, C, W[j][:,:,:] = dlm.filter_df_dyn(member_Y, F, G, V)
             M, C = dlm.smoother(G, a, R, M, C)
