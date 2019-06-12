@@ -80,91 +80,143 @@ def estimator(Y, F_list, G_list, delta, numit=10, mnumit=100, numeps=1e-6, M=200
     return eta, theta, phi
 
 
-def sampler(y, k, delta, init_level, numit=4500, burnin=500):
+class DynamicSamplerResult:
     '''
-    Obtain samples from the posterior of a simple univariate
-    first-order polynomial DLM dynamic clustering.
+    Holds the results from a `sampler` run from the `dynamic` module.
+    '''
+
+    def __init__(self, numit, k, m, p, n, T):
+        self.k = k
+
+        self.theta = [np.empty((numit, T, p[j])) for j in range(k)]
+        self.phi = [np.empty((numit, m)) for j in range(k)]
+        self.W = [np.empty((numit, T, p[j], p[j])) for j in range(k)]
+        
+        self.Z = np.empty((numit, T, n), dtype=np.int64)
+        self.eta = np.empty((numit, T, n, k))
+
+        self._max = numit
+        self._curr = 0
+
+
+    def include(self, theta, phi, W, Z, eta):
+        '''
+        Include samples from a new iteration into the result.
+        '''
+
+        if self._curr == self._max:
+            raise RuntimeError("Tried to include more samples than initially specified.")
+
+        it = self._curr
+        self._curr += 1
+
+        for j in range(self.k):
+            # NOTE: `phi` is passed as an ndarray but here it's a list of ndarrays
+            # This is because in the `sampler` code it makes sense for the cluster
+            # dimension to stay as the rows of the ndarray but here, for consitency
+            # with the other cluster-specific variables, the cluster dimension is
+            # a list.
+
+            self.theta[j][it,:,:] = theta[j]
+            self.phi[j][it,:] = phi[j]
+            self.W[j][it,:,:,:] = W[j]
+        
+        self.Z[it,:,:] = Z
+        self.eta[it,:,:,:] = eta
+
+
+    def means(self):
+        """
+        Return the estimates for the parameters based on means.
+        """
+
+        theta = [self.theta[j].mean(axis=0) for j in range(self.k)]
+        phi = [self.phi[j].mean(axis=0) for j in range(self.k)]
+        W = [self.W[j].mean(axis=0) for j in range(self.k)]
+
+        Z = self.Z.mean(axis=0)
+        eta = self.eta.mean(axis=0)
+
+        return theta, phi, W, Z, eta
+
+
+def sampler(Y, F_list, G_list, delta, numit=2000):
+    '''
+    Uses the Gibbs sampler to obtain samples from the posterior for dynamic
+    clusterization of n m-variate time-series, all observed throughout the
+    same T time instants.
 
     Args:
-        y: An array with each row being the time-series from one
-           observational unit.
-        k: Number of clusters.
-        delta: The universal discount factor to be used for all the
-               units.
-        init_level: The initial level of each cluster.
-        numit: Number of iterations for the algorithm to run.
-        burnin: Number of initial iterations to be discarded.
+        Y: A matrix with T rows and n*m columns.
+        F_list: A list with k specifications for the F matrix of each cluster.
+        G_list: A list with k specifications for the G matrix of each cluster.
+        numit: Number of iterations for the algorithm to run. Defaults to 2000.
 
     Returns:
-        Samples for each parameter.
+        A `DynamicSamplerResult` object.
     '''
 
-    # Constants
-    n, T = y.shape
-    F = G = np.array([[1]])
-    c0 = np.ones(k) * 0.1
+    #-- Preamble 
 
-    # Allocate cluster parameter chains
-    phi = np.empty((numit, k))
-    phi_w = np.empty((numit, k))
-    theta = np.empty((numit, k, T))
+    k, m, p, n, T, index_map = common.get_dimensions(Y, F_list, G_list)
+    _, theta, phi, eta = common.initialize(Y, F_list, G_list, dynamic=True)
+    Z = common.compute_weights_dyn(Y, F_list, G_list, theta, phi, eta).argmax(axis=2)
+    chains = DynamicSamplerResult(numit, k, m, p, n, T)
 
-    # Allocate Dirichlet Process parameter chains
-    eta = np.empty((numit, n, T, k))
-    Z = np.empty((numit, n, T, k))
+    c0 = np.ones(k) * 0.5
 
-    # Initialize using the point-estimates
-    eta[0], Z[0], theta[0], phi[0], phi_w[0] = \
-        estimator(y, k, delta, init_level)
+    # Allocate memory for W
+    W = [np.empty((T, p[j], p[j])) for j in range(k)]
 
-    # Gibbs iterations
-    for l in range(1, numit):
-        if l % 500 == 0:
-            print(f'Gibbs sampler at iteration {l} out of {numit}')
+    #-- Gibbs sampler
 
-        sd = 1. / np.sqrt(phi[l-1])
-        sd_w = 1. / np.sqrt(phi_w[l-1])
+    for it in range(numit):
+        if it % 200 == 0:
+            print(f'dynmix.dynamic.sampler [{it}|{numit}]')
 
-        # Sample membership dummy parameters for each unit
+        # Sample for Z
+        for t in range(T):
+            for i in range(n):
+                Z[t,i] = rng.choice(k, p=eta[t,i])
+
+        # Sample for eta
         for i in range(n):
-            for t in range(T):
-                # Does not need constant because it'll be scaled
-                # f_vals = np.exp(-(y[i, t] - theta[l - 1, :, t])**2 / (2*sd**2))
-                f_vals = sps.norm.pdf(y[i, t], theta[l-1, :, t], sd)
-                weights = eta[l-1, i, t] * f_vals
-                Z[l, i, t] = rng.multinomial(1, weights / weights.sum())
+            multi_Z = np.array([common.basis_vec(Z[t,i], k) for t in range(T)])
+            c = dirichlet.forward_filter(multi_Z, delta[i], c0)
+            eta[:,i,:] = dirichlet.backwards_sampler(c, delta[i])
 
-        # Sample Dirichlet states for each unit
-        for i in range(n):
-            c = dirichlet.forward_filter(Z[l, i], delta, c0)
-            eta[l, i] = dirichlet.backwards_sampler(c, delta)
+        # Sample for theta, W, phi
 
-        # Sample DLM states and parameters for each cluster
+        # REWRITE THIS BLOCK! HERE THE SIZE OF Y AT EACH TIME-STEP VARIES
+        # USE FILTER_DF_DYN!!!
         for j in range(k):
-            # Create observation list for multi_dlm
-            YJ = [y[Z[l, :, t, j] == 1, t] for t in range(T)]
+            member_n = np.empty(T, dtype=np.int)
+            member_Y = []
 
-            # Sample states
-            V = np.array([[sd[j] ** 2]])
-            W = np.array([[sd_w[j] ** 2]])
-            filters = dlm.multi_filter(YJ, F, G, V, W)
-            s, S = dlm.smoother(G, *filters)
-            theta[l, j] = rng.normal(s[:, 0], np.sqrt(S[:, 0, 0]))
-
-            # Sample observational precision
-            num_obs = 0.0001
-            observation_ssq = 0.0001
             for t in range(T):
-                num_obs += 1
-                observation_ssq += np.sum((YJ[t] - theta[l, j, t])**2)
-            phi[l, j] = rng.gamma(num_obs / 2., 2. / observation_ssq)
+                # Which observations are members of this cluster
+                member_nat_idx = [i for i in range(n) if Z[t,i] == j]
+                # Which are the Y indexes for the members of this cluster
+                member_idx = [idx for i in member_nat_idx for idx in index_map[i]]
 
-            # Sample evolutional precision
-            num_state = T - 1 + 0.0001
-            state_ssq = \
-                np.sum((theta[l, j, :-1] - theta[l, j, 1:])**2) + 0.0001
-            phi_w[l, j] = rng.gamma(num_state / 2., 2. / state_ssq)
+                member_n[t] = len(member_nat_idx)
+                member_Y.append(Y[t,member_idx])
 
-    # Return chains dropping burnin phase
-    return (eta[burnin:], Z[burnin:], theta[burnin:],
-            phi[burnin:], phi_w[burnin:])
+            G = G_list[j]
+            F = [np.tile(F_list[j], (n, 1)) for n in member_n]
+            V = [np.diag(np.tile(phi[j], n)) for n in member_n]
+
+            a, R, M, C, W[j][:,:,:] = dlm.filter_df_dyn(member_Y, F, G, V)
+            M, C = dlm.smoother(G, a, R, M, C)
+
+            obs_error = np.ones(m)
+            for t in range(T):
+                theta[j][t] = rng.multivariate_normal(M[t], C[t])
+                obs_error += ((np.dot(F[t], theta[j][t]) - member_Y[t])**2).reshape((member_n[t], m)).sum(axis=0)
+            
+            phi[j] = rng.gamma(member_n.sum() * T + 1, 1 / obs_error)
+
+        # Save values
+        chains.include(theta, phi, W, Z, eta)
+
+    return chains
