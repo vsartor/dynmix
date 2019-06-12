@@ -218,8 +218,7 @@ def filter_df_dyn(Y, F, G, V, df=0.7, m0=None, C0=None):
         V: List of observational error covariance matrices.
         df: The discount factor. Defaults to 0.7.
         m0: The prior mean for the states. Defaults to zeros.
-        C0: The prior covariance for the states. Defaults to a diagonal
-            matrix with entries equal to 10**6.
+        C0: The prior covariance for the states.
 
     Returns:
         a: Prior means.
@@ -249,7 +248,7 @@ def filter_df_dyn(Y, F, G, V, df=0.7, m0=None, C0=None):
         m0 = np.ones(p) * m0
 
     if C0 is None:
-        C0 = np.eye(p) * 10**6
+        C0 = np.eye(p) * (2 * np.abs(Y[0]).mean()) ** 2
     elif type(C0) in [float, int]:
         C0 = np.eye(p) * C0
 
