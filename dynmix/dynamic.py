@@ -186,8 +186,8 @@ def sampler(Y, k, delta, numit=2000):
 
         # Sample Dirichlet states for each unit
         for i in range(n):
-            c = dirichlet.forward_filter(Z[:,i], delta, c0)
-            eta[:,i] = dirichlet.backwards_sampler(c, delta)
+            c = dirichlet.forward_filter(Z[:,i], delta[i], c0)
+            eta[:,i] = dirichlet.backwards_sampler(c, delta[i])
 
 
         # Sample DLM states and parameters for each cluster
