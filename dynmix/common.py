@@ -137,8 +137,6 @@ def compute_weights(Y, F_list, G_list, theta, phi, eta=None):
 
         # Allocate space for each pdf result to be computed
         pdfs = np.empty((k, T))
-        # Include mask
-        include_mask = np.ones(k, dtype=np.bool)
 
         # Compute the pdfs
         for j in range(k):
@@ -147,13 +145,14 @@ def compute_weights(Y, F_list, G_list, theta, phi, eta=None):
             V = np.diag(1 / phi[j])
             for t in range(T):
                 pdfs[j,t] = sps.multivariate_normal.pdf(Y[t,obs_idx], np.dot(F, thetaj[t]), V)
-                if pdfs[j,t] == 0:
-                    include_mask[j] = False
-                    pdfs[j,:] = 0 # Enter a dummy value
-                    break
+    
+            # Zeros become minimum non-zero computed value
+            zero_mask = pdfs[j] == 0
+            if zero_mask.any():
+                pdfs[j][zero_mask] = np.min(pdfs[j][np.invert(zero_mask)])
     
         # Compute the mean order of magnitude for each cluster and fetch the maximum.
-        O_bar = np.mean(np.log10(pdfs[include_mask]), axis=1).max()
+        O_bar = np.mean(np.log10(pdfs), axis=1).max()
 
         # Adjust the order of magnitude
         pdfs *= 10**(-O_bar)
@@ -237,7 +236,7 @@ def initialize(Y, F_list, G_list, dynamic):
         theta_est, V_est, _, _ = dlm.mle(Y[:,index_mask[centroids[j]]], F_list[j], G_list[j])
 
         theta[j][:,:] = theta_est
-        phi[j,:] = np.diag(V_est)
+        phi[j,:] = 1 / np.diag(V_est)
 
     # Step 4: Compute the membership parameters
     if dynamic:
