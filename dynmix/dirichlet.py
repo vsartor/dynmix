@@ -62,7 +62,6 @@ def backwards_sampler(c, delta):
     eta = np.empty(c.shape)
 
     #-- Algorithm
-
     eta[n-1] = npr.dirichlet(c[n-1], 1)[0]
 
     for t in range(n-1, 0, -1):

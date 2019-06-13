@@ -140,7 +140,7 @@ class DynamicSamplerResult:
         return theta, phi, W, Z, eta
 
 
-def sampler(Y, k, delta, numit=2000):
+def sampler(Y, F_list,  G_list, delta, numit=2000):
     '''
     Obtain samples from the posterior of a simple univariate
     first-order polynomial DLM dynamic clustering.
@@ -157,14 +157,13 @@ def sampler(Y, k, delta, numit=2000):
 
     #-- Preamble 
 
-    F_list = [np.eye(1) for j in range(k)]
-    G_list = [np.eye(1) for j in range(k)]
-
-    k, m, p, n, T, _ = common.get_dimensions(Y, F_list, G_list)
+    k, m, p, n, T, idx_map = common.get_dimensions(Y, F_list, G_list)
     _, theta, phi, eta = common.initialize(Y, F_list, G_list, dynamic=True)
     chains = DynamicSamplerResult(numit, k, m, p, n, T)
 
     Z = np.empty((T, n, k))
+
+    f = sps.multivariate_normal.pdf
 
     c0 = np.ones(k) * 0.1
 
@@ -172,43 +171,49 @@ def sampler(Y, k, delta, numit=2000):
     for it in range(numit):
         if it % 200 == 0:
             print(f'dynmix.dynamic.sampler [{it}|{numit}]')
-        
-        sd = [1.0 / np.sqrt(phi) for phi in phi]
 
 
         # Sample membership dummy parameters for each unit
+
         for i in range(n):
             for t in range(T):
-                f_vals = np.array([sps.norm.pdf(Y[t, i], theta[j][t], sd[j])[0] for j in range(k)])
+                f_vals = np.array([f(Y[t, i], np.dot(F_list[j], theta[j][t]), np.diag(1. / phi[j]))
+                                   for j in range(k)])
                 weights = eta[t, i] * f_vals
                 Z[t, i] = rng.multinomial(1, weights / weights.sum())
 
 
         # Sample Dirichlet states for each unit
+
         for i in range(n):
             c = dirichlet.forward_filter(Z[:,i], delta[i], c0)
             eta[:,i] = dirichlet.backwards_sampler(c, delta[i])
 
 
         # Sample DLM states and parameters for each cluster
+
         for j in range(k):
-            # Create observation list for multi_dlm
-            YJ = [Y[t, Z[t, :, j] == 1] for t in range(T)]
-            nJ = [len(y) for y in YJ]
-            FJ = [np.atleast_2d(np.ones(n)).T for n in nJ]
-            VJ = [np.diag(np.repeat(sd[j] ** 2, n)) for n in nJ]
-
-            a, R, M, C, W = dlm.filter_df_dyn(YJ, FJ, np.eye(1), VJ)
-            s, S = dlm.smoother(np.eye(1), a, R, M, C)
-            theta[j][:] = rng.normal(s[:, 0], np.sqrt(S[:, 0, 0]))[:, np.newaxis]
-
-            # Sample observational precision
-            num_obs = 0.0001
-            observation_ssq = 0.0001
+            YJ = []
+            nJ = []
+            
             for t in range(T):
-                num_obs += 1
-                observation_ssq += np.sum((YJ[t] - theta[j][t])**2)
-            phi[j] = rng.gamma(num_obs / 2., 2. / observation_ssq)
+                nat_idx = [i for i in range(n) if Z[t,i,j] == 1]
+                idx = [idx for i in nat_idx for idx in idx_map[i]]
+                YJ.append(Y[t, idx])
+            
+            nJ = [len(y) for y in YJ]
+            FJ = [np.tile(F_list[j], (n, 1)) for n in nJ]
+            VJ = [np.diag(np.tile(1.0 / phi[j], n)) for n in nJ]
+
+            a, R, M, C, W = dlm.filter_df_dyn(YJ, FJ, G_list[j], VJ)
+            M, C = dlm.smoother(G_list[j], a, R, M, C)
+
+            obs_error = np.ones(m)
+            for t in range(T):
+                theta[j][t] = rng.multivariate_normal(M[t], C[t])
+                obs_error += ((np.dot(FJ[t], theta[j][t]) - YJ[t])**2).reshape((nJ[t], m)).sum(axis=0)
+
+            phi[j] = rng.gamma(np.sum(nJ) * T + 1, 1 / obs_error)
 
         # Save values
         chains.include(theta, phi, W, Z, eta)
