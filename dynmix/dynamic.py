@@ -15,7 +15,44 @@ import scipy.stats as sps
 
 from . import dlm
 from . import common
+from . import static
 from . import dirichlet
+
+
+def delta(Y, F_list, G_list, W=5, seed=2):
+    '''
+    Selects a discount factor for each time-series based on static mixture
+    of DLMs.
+
+    Args:
+        Y: A matrix with T rows and n*m columns.
+        F_list: A list with k specifications for the F matrix of each cluster.
+        G_list: A list with k specifications for the G matrix of each cluster.
+        W: Number of windows for the time-span to be divided over.
+        seed: Seed used for reproducing similar classifications.
+
+    Returns:
+        The discount factor vector.
+    '''
+
+    state = rng.get_state()
+
+    _, _, _, n, T, _ = common.get_dimensions(Y, F_list, G_list)
+    time_windows = [range(int(i * T / W), int((i + 1) * T / W)) for i in range(W)]
+
+    classifications = np.empty((W, n))
+
+    for l, window in enumerate(time_windows):
+        print(f'Window {l} out of {W}...')
+
+        rng.seed(seed)
+        eta, _, _, _ = static.estimator(Y[window], F_list, G_list, numit=10, mnumit=50)
+        classifications[l] = eta.argmax(axis=1)
+
+    scores = classifications.var(axis=0)
+
+    rng.set_state(state)
+    return 0.5 + 0.45 * (1 - (scores - scores.min()) / (scores.max() - scores.min()))
 
 
 def estimator(Y, F_list, G_list, delta, numit=10, mnumit=100, numeps=1e-6, M=200):
