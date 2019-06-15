@@ -138,6 +138,8 @@ def compute_weights(Y, F_list, G_list, theta, phi, eta=None):
         # Allocate space for each pdf result to be computed
         pdfs = np.empty((k, T))
 
+        include_mask = np.ones(k, dtype=np.bool)
+
         # Compute the pdfs
         for j in range(k):
             F = F_list[j]
@@ -148,11 +150,13 @@ def compute_weights(Y, F_list, G_list, theta, phi, eta=None):
     
             # Zeros become minimum non-zero computed value
             zero_mask = pdfs[j] == 0
-            if zero_mask.any():
+            if zero_mask.all():
+                include_mask[j] = False
+            elif zero_mask.any():
                 pdfs[j][zero_mask] = np.min(pdfs[j][np.invert(zero_mask)])
     
         # Compute the mean order of magnitude for each cluster and fetch the maximum.
-        O_bar = np.mean(np.log10(pdfs), axis=1).max()
+        O_bar = np.mean(np.log10(pdfs[include_mask]), axis=1).max()
 
         # Adjust the order of magnitude
         pdfs *= 10**(-O_bar)
