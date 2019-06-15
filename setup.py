@@ -19,7 +19,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='dynmix',
-    version='0.3.0-dev1',
+    version='0.3.0',
     description='Dynamix Membership Mixture Models',
     long_description=long_description,
     long_description_content_type='text/markdown',
