@@ -156,6 +156,9 @@ def compute_weights(Y, F_list, G_list, theta, phi, eta=None):
                 pdfs[j][zero_mask] = np.min(pdfs[j][np.invert(zero_mask)])
     
         # Compute the mean order of magnitude for each cluster and fetch the maximum.
+        if np.all(np.invert(include_mask)):
+            weights[i] = 1 / k
+            continue
         O_bar = np.mean(np.log10(pdfs[include_mask]), axis=1).max()
 
         # Adjust the order of magnitude
