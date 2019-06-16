@@ -9,6 +9,8 @@ Copyright notice:
     this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 '''
 
+import itertools
+
 import numpy as np
 import numpy.random as rng
 import scipy.stats as sps
@@ -35,9 +37,15 @@ def delta(Y, F_list, G_list, W=5, seed=2):
         The discount factor vector.
     '''
 
+    def reorder(x, o):
+        tmp = x.copy()
+        for old, new in enumerate(o):
+            tmp[x == old] = new
+        return tmp
+
     state = rng.get_state()
 
-    _, _, _, n, T, _ = common.get_dimensions(Y, F_list, G_list)
+    k, _, _, n, T, _ = common.get_dimensions(Y, F_list, G_list)
     time_windows = [range(int(i * T / W), int((i + 1) * T / W)) for i in range(W)]
 
     classifications = np.empty((W, n))
@@ -48,6 +56,20 @@ def delta(Y, F_list, G_list, W=5, seed=2):
         rng.seed(seed)
         eta, _, _, _ = static.estimator(Y[window], F_list, G_list, numit=10, mnumit=50)
         classifications[l] = eta.argmax(axis=1)
+        
+        # Pick label permutation that causes less change
+        if l > 0:
+            best_err = np.inf
+            best_ord = None
+            for ord in itertools.permutations(range(k)):
+                candidate = reorder(classifications[l], ord)
+                err = np.abs(classifications[l-1] - candidate).sum()
+                if  err < best_err:
+                    best_err = err
+                    best_ord = candidate
+            classifications[l] = best_ord
+
+
 
     scores = classifications.var(axis=0)
 
