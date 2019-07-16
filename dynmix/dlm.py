@@ -238,7 +238,7 @@ def filter_df_dyn(Y, F, G, V, df=0.7, m0=None, C0=None):
             raise ValueError("V dimension mismatch")
         if F[t].shape[0] != n[t] or F[t].shape[1] != p:
             raise ValueError("F dimension mismatch")
-    
+
     if G.shape[1] != p:
         raise ValueError("G dimension mismatch")
 
@@ -539,7 +539,7 @@ def weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
 
     if verbose:
         print(f'{np.sum(not good_weight_mask)} observations are being dropped due to low weight.')
-    
+
     # Select only observations with good weights
     good_indexes = [index for i in range(n) for index in index_mask[i] if good_weight_mask[i]]
     y = y[:,good_indexes]
@@ -658,7 +658,7 @@ def dynamic_weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
 
         if verbose:
             print(f'{np.sum(not good_weight_mask)} observations are being dropped at time {t}.')
-        
+
         # Select only observations with good weights
         good_indexes = [index for i in range(n) for index in index_mask[i] if good_weight_mask[i]]
         good_y.append(y[t,good_indexes])
