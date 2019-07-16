@@ -184,7 +184,7 @@ def filter_df(Y, F, G, V, df=0.7, m0=None, C0=None):
     e = Y[0] - f
     Qinv = np.linalg.inv(Q)
     A = np.dot(np.dot(R[0], Ft), Qinv)
-    m[0] = a[0] + np.dot(A, e)
+    m[0] = a[0] + np.dot(A, e.T).T
     C[0] = R[0] - np.dot(np.dot(A, Q), A.T)
 
     for t in range(1, T):
@@ -197,7 +197,7 @@ def filter_df(Y, F, G, V, df=0.7, m0=None, C0=None):
         e = Y[t] - f
         Qinv = np.linalg.inv(Q)
         A = np.dot(np.dot(R[t], Ft), Qinv)
-        m[t] = a[t] + np.dot(A, e)
+        m[t] = a[t] + np.dot(A, e.T).T
         C[t] = R[t] - np.dot(np.dot(A, Q), A.T)
 
     return a, R, m, C, W
@@ -457,7 +457,7 @@ def mle(y, F, G, df=0.7, m0=None, C0=None, maxit=50, numeps=1e-10,
         # and the mode is beta / (alpha + 1)
         V = np.zeros(V.shape)
         for t in range(T):
-            V += np.diag((y[t] - np.dot(F, theta[t]))**2 / T)
+            V += np.diag(np.power(y[t] - np.dot(F, theta[t]), 2) / T)
 
         # Stop if convergence condition is satisfied
         if np.mean((theta - old_theta)**2) < numeps**2:
