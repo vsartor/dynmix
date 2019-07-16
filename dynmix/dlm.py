@@ -12,9 +12,7 @@ Copyright notice:
 '''
 
 import numpy as np
-
 import scipy.stats as sps
-import scipy.optimize as opt
 
 
 def simulate(T, F, G, V, W, theta_init=None, n=None):
