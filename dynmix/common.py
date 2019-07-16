@@ -147,14 +147,14 @@ def compute_weights(Y, F_list, G_list, theta, phi, eta=None):
             V = np.diag(1 / phi[j])
             for t in range(T):
                 pdfs[j,t] = sps.multivariate_normal.pdf(Y[t,obs_idx], np.dot(F, thetaj[t]), V)
-    
+
             # Zeros become minimum non-zero computed value
             zero_mask = pdfs[j] == 0
             if zero_mask.all():
                 include_mask[j] = False
             elif zero_mask.any():
                 pdfs[j][zero_mask] = np.min(pdfs[j][np.invert(zero_mask)])
-    
+
         # Compute the mean order of magnitude for each cluster and fetch the maximum.
         if np.all(np.invert(include_mask)):
             weights[i] = 1 / k
@@ -227,14 +227,14 @@ def initialize(Y, F_list, G_list, dynamic):
 
         # Get the biggest distance for each observation and only get this for candidates
         weights = np.max(np.array(distances), axis=0)[candidates]
-        
+
         # Draw a new centroid weighted by the distance
         probs = weights / weights.sum()
         centroids.append(rng.choice(candidates, 1, p=probs)[0])
-    
+
     # Step 3: Now that centroid observations have been picked, initialize the
     # cluster parameters based on MLE estimation which is based purely on them.
-    
+
     # TODO: Current ordering is assumed to be arbitrary, which is only true if all
     # F_j and G_j are the same. When it isn't adjust all k models for all k centroids
     # and pick the highest likelihood candidate for each model.
