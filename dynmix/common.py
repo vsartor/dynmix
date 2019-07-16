@@ -205,9 +205,9 @@ def initialize(Y, F_list, G_list, dynamic):
 
     k, m, p, n, T, index_mask = get_dimensions(Y, F_list, G_list)
 
-    # Allocate space for parameters
     theta = [np.empty((T, p[j])) for j in range(k)]
-    phi = np.empty((k, m))
+
+    phi = np.ones((k, m))
 
     #-- Algorithm
 
@@ -252,24 +252,17 @@ def initialize(Y, F_list, G_list, dynamic):
     # and pick the highest likelihood candidate for each model.
 
     for j in range(k):
-        theta_est, V_est, _, _ = dlm.mle(Y[:,index_mask[centroids[j]]], F_list[j], G_list[j])
-
-        theta[j][:,:] = theta_est
-        phi[j,:] = 1 / np.diag(V_est)
+        theta[j][:,:], _, _, _ = dlm.mle(Y[:,index_mask[centroids[j]]], F_list[j], G_list[j])
 
     # Step 4: Compute the membership parameters
 
     # NOTE: To help avoid numerical errors, and since it will not affect the actual weights, heavily
     # inflate the variances to help avoid nil probabilities.
 
-    fakephi = np.empty((k, m))
-    for j, phij in enumerate(phi):
-        fakephi[j] = phij.min() / phij / Y.var(axis=1).max() / 100
-
     if dynamic:
-        eta = compute_weights_dyn(Y, F_list, G_list, theta, fakephi)
+        eta = compute_weights_dyn(Y, F_list, G_list, theta, phi)
     else:
-        eta = compute_weights(Y, F_list, G_list, theta, fakephi)
+        eta = compute_weights(Y, F_list, G_list, theta, phi)
 
     return centroids, theta, phi, eta
 
