@@ -453,7 +453,7 @@ def mle(y, F, G, df=0.7, m0=None, C0=None, maxit=50, numeps=1e-10,
         # and the mode is beta / (alpha + 1)
         V = np.zeros(V.shape)
         for t in range(T):
-            V += np.diag(np.power(y[t] - np.dot(F, theta[t]), 2) / T)
+            V += np.diagflat(np.power(y[t] - np.dot(F, theta[t]), 2) / T)
 
         # Stop if convergence condition is satisfied
         if np.mean((theta - old_theta)**2) < numeps**2:
