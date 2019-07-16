@@ -56,7 +56,7 @@ def delta(Y, F_list, G_list, W=5, seed=2):
         rng.seed(seed)
         eta, _, _, _ = static.estimator(Y[window], F_list, G_list, numit=10, mnumit=50)
         classifications[l] = eta.argmax(axis=1)
-        
+
         # Pick label permutation that causes less change
         if l > 0:
             best_err = np.inf
@@ -64,12 +64,10 @@ def delta(Y, F_list, G_list, W=5, seed=2):
             for ord in itertools.permutations(range(k)):
                 candidate = reorder(classifications[l], ord)
                 err = np.abs(classifications[l-1] - candidate).sum()
-                if  err < best_err:
+                if err < best_err:
                     best_err = err
                     best_ord = candidate
             classifications[l] = best_ord
-
-
 
     scores = classifications.var(axis=0)
 
@@ -99,23 +97,23 @@ def estimator(Y, F_list, G_list, delta, numit=10, mnumit=100, numeps=1e-6, M=200
         W: A list with the W for each cluster.
     '''
 
-    #-- Preamble 
+    #-- Preamble
 
     k, _, _, n, T, _ = common.get_dimensions(Y, F_list, G_list)
     _, theta, phi, eta = common.initialize(Y, F_list, G_list, dynamic=True)
-    
+
     c0 = np.ones(k)
     mc_estimates = np.empty((T, k))
 
     #-- Algorithm
 
     for it in range(numit):
-        print(f'\nIteration {it} out of {numit}', end = '')
-        
+        print(f'\nIteration {it} out of {numit}', end='')
+
         # Step 0: Expectation step
 
         weights = common.compute_weights_dyn(Y, F_list, G_list, theta, phi, eta)
-        
+
         # Step 1: Maximize the weights for each observation
 
         for i in range(n):
@@ -131,12 +129,14 @@ def estimator(Y, F_list, G_list, delta, numit=10, mnumit=100, numeps=1e-6, M=200
 
         # Step 2: Maximize the cluster parameters
 
+        W = []
         for j in range(k):
-            theta[j], V, _, _ = dlm.dynamic_weighted_mle(Y, F_list[j], G_list[j], eta[:,:,j],
-                                                         maxit=mnumit, numeps=numeps)
+            theta[j], V, Wj, _ = dlm.dynamic_weighted_mle(Y, F_list[j], G_list[j], eta[:,:,j],
+                                                          maxit=mnumit, numeps=numeps)
             phi[j,:] = 1 / np.diag(V)
+            W.append(Wj)
 
-    return eta, theta, phi
+    return eta, theta, phi, W
 
 
 class DynamicSamplerResult:
@@ -150,13 +150,12 @@ class DynamicSamplerResult:
         self.theta = [np.empty((numit, T, p[j])) for j in range(k)]
         self.phi = [np.empty((numit, m)) for j in range(k)]
         self.W = [np.empty((numit, T, p[j], p[j])) for j in range(k)]
-        
+
         self.Z = np.empty((numit, T, n), dtype=np.int64)
         self.eta = np.empty((numit, T, n, k))
 
         self._max = numit
         self._curr = 0
-
 
     def include(self, theta, phi, W, Z, eta):
         '''
@@ -179,10 +178,9 @@ class DynamicSamplerResult:
             self.theta[j][it,:,:] = theta[j]
             self.phi[j][it,:] = phi[j]
             self.W[j][it,:,:,:] = W[j]
-        
-        self.Z[it,:,:] = Z.argmax(axis=2) #TODO: REMOVE argmax(axis=2) WHEN THE INPUT Z IS NOT MULTINOMIAL
-        self.eta[it,:,:,:] = eta
 
+        self.Z[it,:,:] = Z.argmax(axis=2)  # TODO: REMOVE argmax(axis=2) WHEN THE INPUT Z IS NOT MULTINOMIAL
+        self.eta[it,:,:,:] = eta
 
     def means(self):
         """
@@ -199,7 +197,7 @@ class DynamicSamplerResult:
         return theta, phi, W, Z, eta
 
 
-def sampler(Y, F_list,  G_list, delta, numit=2000):
+def sampler(Y, F_list, G_list, delta, numit=2000):
     '''
     Obtain samples from the posterior of a simple univariate
     first-order polynomial DLM dynamic clustering.
@@ -209,12 +207,12 @@ def sampler(Y, F_list,  G_list, delta, numit=2000):
         k: Number of clusters.
         delta: Discount factors to be used.
         numit: Number of iterations for the algorithm to run.
-        
+
     Returns:
         A DynamicSamplerResult object.
     '''
 
-    #-- Preamble 
+    #-- Preamble
 
     k, m, p, n, T, idx_map = common.get_dimensions(Y, F_list, G_list)
     _, theta, phi, eta = common.initialize(Y, F_list, G_list, dynamic=True)
@@ -231,7 +229,6 @@ def sampler(Y, F_list,  G_list, delta, numit=2000):
         if it % 200 == 0:
             print(f'dynmix.dynamic.sampler [{it}|{numit}]')
 
-
         # Sample membership dummy parameters for each unit
 
         for i in range(n):
@@ -241,25 +238,23 @@ def sampler(Y, F_list,  G_list, delta, numit=2000):
                 weights = eta[t, i] * f_vals
                 Z[t, i] = rng.multinomial(1, weights / weights.sum())
 
-
         # Sample Dirichlet states for each unit
 
         for i in range(n):
             c = dirichlet.forward_filter(Z[:,i], delta[i], c0)
             eta[:,i] = dirichlet.backwards_sampler(c, delta[i])
 
-
         # Sample DLM states and parameters for each cluster
 
         for j in range(k):
             YJ = []
             nJ = []
-            
+
             for t in range(T):
                 nat_idx = [i for i in range(n) if Z[t,i,j] == 1]
                 idx = [idx for i in nat_idx for idx in idx_map[i]]
                 YJ.append(Y[t, idx])
-            
+
             nJ = [len(y) for y in YJ]
             FJ = [np.tile(F_list[j], (n, 1)) for n in nJ]
             VJ = [np.diag(np.tile(1.0 / phi[j], n)) for n in nJ]
