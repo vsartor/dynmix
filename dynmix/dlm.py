@@ -15,6 +15,24 @@ import numpy as np
 import scipy.stats as sps
 
 
+def _process_prior(Y, p, m0, C0):
+    '''
+    Common function to process filtering priors.
+    '''
+
+    if m0 is None:
+        m0 = np.zeros(p)
+    elif type(m0) in [float, int]:
+        m0 = np.ones(p) * m0
+
+    if C0 is None:
+        C0 = np.abs(Y[0]).max() ** 2
+    elif type(C0) in [float, int]:
+        C0 = np.eye(p) * C0
+
+    return m0, C0
+
+
 def simulate(T, F, G, V, W, theta_init=None, n=None):
     '''
     Simulates observations for a Dynamic Linear Model.
@@ -90,10 +108,7 @@ def filter(Y, F, G, V, W, m0=None, C0=None):
     if W.shape[0] != p or W.shape[1] != p:
         raise ValueError("W dimension mismatch")
 
-    if m0 is None:
-        m0 = np.zeros(p)
-    if C0 is None:
-        C0 = np.diag(np.ones(p)) * 10**6
+    m0, C0 = _process_prior(Y, p, m0, C0)
 
     a = np.empty((T, p))
     R = np.empty((T, p, p))
@@ -159,15 +174,7 @@ def filter_df(Y, F, G, V, df=0.7, m0=None, C0=None):
     if G.shape[0] != p or G.shape[1] != p:
         raise ValueError("G dimension mismatch")
 
-    if m0 is None:
-        m0 = np.zeros(p)
-    elif type(m0) in [float, int]:
-        m0 = np.ones(p) * m0
-
-    if C0 is None:
-        C0 = np.eye(p) * 10**6
-    elif type(C0) in [float, int]:
-        C0 = np.eye(p) * C0
+    m0, C0 = _process_prior(Y, p, m0, C0)
 
     a = np.empty((T, p))
     R = np.empty((T, p, p))
@@ -240,15 +247,7 @@ def filter_df_dyn(Y, F, G, V, df=0.7, m0=None, C0=None):
     if G.shape[1] != p:
         raise ValueError("G dimension mismatch")
 
-    if m0 is None:
-        m0 = np.zeros(p)
-    elif type(m0) in [float, int]:
-        m0 = np.ones(p) * m0
-
-    if C0 is None:
-        C0 = np.eye(p) * (2 * np.abs(Y[0]).mean()) ** 2
-    elif type(C0) in [float, int]:
-        C0 = np.eye(p) * C0
+    m0, C0 = _process_prior(Y, p, m0, C0)
 
     a = np.empty((T, p))
     R = np.empty((T, p, p))
@@ -309,10 +308,7 @@ def multi_filter(Y, F, G, V, W, m0=None, C0=None):
     T = len(Y)
     Gt = G.T
 
-    if m0 is None:
-        m0 = np.zeros(p)
-    if C0 is None:
-        C0 = np.diag(np.ones(p)) * 10**6
+    m0, C0 = _process_prior(Y, p, m0, C0)
 
     a = np.empty((T, p))
     R = np.empty((T, p, p))
