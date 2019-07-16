@@ -164,9 +164,21 @@ def compute_weights(Y, F_list, G_list, theta, phi, eta=None):
         # Adjust the order of magnitude
         pdfs *= 10**(-O_bar)
 
-        # Perform usual computations based on the entries of pdfs
+        # Perform usual computations based on the entries of pdfs increasing numerical accuracy
         for j in range(k):
             weights[i,j] = eta[i,j] * pdfs[j].prod()
+
+        if weights[i].sum() == 0:
+            # If it wasn't enough, improve precision
+            pdfs128 = np.array(pdfs, np.float128)
+            for j in range(k):
+                weights[i,j] = eta[i,j] * pdfs128[j].prod()
+        elif np.any(np.isinf(weights[i])):
+            # If any overflowed, give them a 1 and others 0
+            mask = np.isinf(weights[i])
+            weights[i][mask] = 1
+            weights[i][np.invert(mask)] = 0
+
         weights[i] /= weights[i].sum()
 
     return weights
@@ -246,10 +258,18 @@ def initialize(Y, F_list, G_list, dynamic):
         phi[j,:] = 1 / np.diag(V_est)
 
     # Step 4: Compute the membership parameters
+
+    # NOTE: To help avoid numerical errors, and since it will not affect the actual weights, heavily
+    # inflate the variances to help avoid nil probabilities.
+
+    fakephi = np.empty((k, m))
+    for j, phij in enumerate(phi):
+        fakephi[j] = phij.min() / phij / Y.var(axis=1).max() / 100
+
     if dynamic:
-        eta = compute_weights_dyn(Y, F_list, G_list, theta, phi)
+        eta = compute_weights_dyn(Y, F_list, G_list, theta, fakephi)
     else:
-        eta = compute_weights(Y, F_list, G_list, theta, phi)
+        eta = compute_weights(Y, F_list, G_list, theta, fakephi)
 
     return centroids, theta, phi, eta
 
