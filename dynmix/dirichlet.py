@@ -69,7 +69,7 @@ def backwards_sampler(c, delta):
         S = npr.beta(delta * csum, (1 - delta) * csum)
         u = npr.dirichlet((1 - delta) * c[t-1], 1)[0]
         eta[t-1] = S * eta[t] + (1 - S) * u
-    
+
     return eta
 
 
@@ -180,3 +180,44 @@ def backwards_estimator(c, delta):
         eta[t] = mod_dirichlet_mean(*params)
 
     return eta
+
+
+def delta_marginal(delta: float, Z: np.array, k: int) -> float:
+    '''
+    The marginal of delta given the multinomial observations. Specifically crafted
+    for the case of Z_t | eta_t ~ Multinom(1, eta_t). The prior is hard-coded
+    as uninformative.
+
+    delta:  Real value between 0 and 1.
+    Z:      NumPy vector of integers between 0 and k - 1.
+    k:      Integer value higher than 0.
+    '''
+
+    T = len(Z)
+
+    log_marginal = 0
+    c0_one = 0.5
+    c0_sum = c0_one * k
+
+    for t in range(1, T+1):
+        numerator = delta ** (t-1) * c0_one
+        for l in range(0, t-1):
+            if Z[t-2-l] - Z[t-1]:
+                numerator += delta ** l
+
+        denominator = delta ** (t-1) * c0_sum + (1 - delta ** (t-1)) / (1 - delta)
+        log_marginal += np.log(numerator) - np.log(denominator)
+
+    return log_marginal
+
+
+def maximize_delta(Z: np.array, k: int, resolution: int = 40, mean: bool = False):
+    '''
+    Z:          NumPy vector of integers between 0 and k - 1.
+    k:          Integer value higher than 0.
+    resolution: Grid resolution for delta candidates. Integer value higher than 10.
+    '''
+
+    delta_grid = np.linspace(0.01, 0.99, resolution)
+    marginal_likelihood = np.exp(delta_marginal(delta_grid, Z, k))
+    return delta_grid[np.argmax(marginal_likelihood)] if not mean else np.sum(delta_grid * marginal_likelihood) / np.sum(marginal_likelihood)

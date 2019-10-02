@@ -9,73 +9,16 @@ Copyright notice:
     this file, You can obtain one at http://mozilla.org/MPL/2.0/.
 '''
 
-import itertools
-
 import numpy as np
 import numpy.random as rng
 import scipy.stats as sps
 
 from . import dlm
 from . import common
-from . import static
 from . import dirichlet
 
 
-def delta(Y, F_list, G_list, W=5, seed=2):
-    '''
-    Selects a discount factor for each time-series based on static mixture
-    of DLMs.
-
-    Args:
-        Y: A matrix with T rows and n*m columns.
-        F_list: A list with k specifications for the F matrix of each cluster.
-        G_list: A list with k specifications for the G matrix of each cluster.
-        W: Number of windows for the time-span to be divided over.
-        seed: Seed used for reproducing similar classifications.
-
-    Returns:
-        The discount factor vector.
-    '''
-
-    def reorder(x, o):
-        tmp = x.copy()
-        for old, new in enumerate(o):
-            tmp[x == old] = new
-        return tmp
-
-    state = rng.get_state()
-
-    k, _, _, n, T, _ = common.get_dimensions(Y, F_list, G_list)
-    time_windows = [range(int(i * T / W), int((i + 1) * T / W)) for i in range(W)]
-
-    classifications = np.empty((W, n))
-
-    for l, window in enumerate(time_windows):
-        print(f'Window {l} out of {W}...')
-
-        rng.seed(seed)
-        eta, _, _, _ = static.estimator(Y[window], F_list, G_list, numit=10, mnumit=50)
-        classifications[l] = eta.argmax(axis=1)
-
-        # Pick label permutation that causes less change
-        if l > 0:
-            best_err = np.inf
-            best_ord = None
-            for ord in itertools.permutations(range(k)):
-                candidate = reorder(classifications[l], ord)
-                err = np.abs(classifications[l-1] - candidate).sum()
-                if err < best_err:
-                    best_err = err
-                    best_ord = candidate
-            classifications[l] = best_ord
-
-    scores = classifications.var(axis=0)
-
-    rng.set_state(state)
-    return 0.5 + 0.45 * (1 - (scores - scores.min()) / (scores.max() - scores.min()))
-
-
-def estimator(Y, F_list, G_list, delta, numit=10, mnumit=100, numeps=1e-6, M=200):
+def estimator(Y, F_list, G_list, numit=10, mnumit=100, numeps=1e-6, M=200):
     '''
     Uses Expectation-Maximization to estimate dynamic clusterization of n
     m-variate time-series, all observed throughout the same T time instants.
@@ -84,7 +27,6 @@ def estimator(Y, F_list, G_list, delta, numit=10, mnumit=100, numeps=1e-6, M=200
         Y: A matrix with T rows and n*m columns.
         F_list: A list with k specifications for the F matrix of each cluster.
         G_list: A list with k specifications for the G matrix of each cluster.
-        delta: Vector with discount factor for each observation.
         numit: Number of iterations for the algorithm to run.
         mnumit: Maximum number of iterations for the M-step algorithm to run.
         numeps: Numerical precision for the M-step algorithm.
@@ -101,9 +43,11 @@ def estimator(Y, F_list, G_list, delta, numit=10, mnumit=100, numeps=1e-6, M=200
 
     k, _, _, n, T, _ = common.get_dimensions(Y, F_list, G_list)
     _, theta, phi, eta = common.initialize(Y, F_list, G_list, dynamic=True)
+    delta = np.ones(n) * 0.5
 
     c0 = np.ones(k)
     mc_estimates = np.empty((T, k))
+    mc_deltas = np.empty(M)
 
     #-- Algorithm
 
@@ -121,10 +65,14 @@ def estimator(Y, F_list, G_list, delta, numit=10, mnumit=100, numeps=1e-6, M=200
 
             # Simulate M observations and obtain the mean of all M estimates
             mc_estimates[:,:] = 0
-            for _ in range(M):
+            mc_deltas[:] = 0
+            for l in range(M):
                 mc_Y = np.array([rng.multinomial(1, x) for x in weights[:,i,:]])
-                c = dirichlet.forward_filter(mc_Y, delta[i], c0)
+                mc_Z = np.argmax(mc_Y, axis=1)
+                mc_deltas[l] = dirichlet.maximize_delta(mc_Z, k)
+                c = dirichlet.forward_filter(mc_Y, mc_deltas[l], c0)
                 mc_estimates += dirichlet.backwards_estimator(c, delta[i]) / M
+            delta[i] = np.mean(mc_deltas)
             eta[:,i,:] = mc_estimates
 
         # Step 2: Maximize the cluster parameters
@@ -136,7 +84,7 @@ def estimator(Y, F_list, G_list, delta, numit=10, mnumit=100, numeps=1e-6, M=200
             phi[j,:] = 1 / np.diag(V)
             W.append(Wj)
 
-    return eta, theta, phi, W
+    return eta, theta, phi, W, delta
 
 
 class DynamicSamplerResult:
