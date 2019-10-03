@@ -128,10 +128,12 @@ class DynamicSamplerResult:
         self.Z = np.empty((numit, T, n), dtype=np.int64)
         self.eta = np.empty((numit, T, n, k))
 
+        self.delta = np.empty((numit, n))
+
         self._max = numit
         self._curr = 0
 
-    def include(self, theta, phi, W, Z, eta):
+    def include(self, theta, phi, W, Z, eta, delta):
         '''
         Include samples from a new iteration into the result.
         '''
@@ -153,8 +155,10 @@ class DynamicSamplerResult:
             self.phi[j][it,:] = phi[j]
             self.W[j][it,:,:,:] = W[j]
 
-        self.Z[it,:,:] = Z.argmax(axis=2)  # TODO: REMOVE argmax(axis=2) WHEN THE INPUT Z IS NOT MULTINOMIAL
+        self.Z[it,:,:] = Z.argmax(axis=2)
         self.eta[it,:,:,:] = eta
+
+        self.delta[it,:] = delta
 
     def means(self):
         """
@@ -167,11 +171,12 @@ class DynamicSamplerResult:
 
         Z = self.Z.mean(axis=0)
         eta = self.eta.mean(axis=0)
+        delta = self.delta.mean(axis=0)
 
-        return theta, phi, W, Z, eta
+        return theta, phi, W, Z, eta, delta
 
 
-def sampler(Y, F_list, G_list, delta, numit=2000):
+def sampler(Y, F_list, G_list, numit=2000):
     '''
     Obtain samples from the posterior of a simple univariate
     first-order polynomial DLM dynamic clustering.
@@ -192,6 +197,11 @@ def sampler(Y, F_list, G_list, delta, numit=2000):
     _, theta, phi, eta = common.initialize(Y, F_list, G_list, dynamic=True)
     chains = DynamicSamplerResult(numit, k, m, p, n, T)
 
+    print('Initializing delta... ', end=' ')
+    s_eta, _, _, _ = independent.estimator(Y, F_list, G_list)
+    delta = np.clip(np.max(np.mean(s_eta, axis=0), axis=1), 0.05, 0.95)
+    print('DONE')
+
     Z = np.empty((T, n, k))
 
     f = sps.multivariate_normal.pdf
@@ -200,8 +210,8 @@ def sampler(Y, F_list, G_list, delta, numit=2000):
 
     # Gibbs iterations
     for it in range(numit):
-        if it % 200 == 0:
-            print(f'dynmix.dynamic.sampler [{it}|{numit}]')
+        if it % 100 == 0:
+            print(f'dynmix.dynamic.sampler [{it + 1}|{numit}]')
 
         # Sample membership dummy parameters for each unit
 
@@ -211,6 +221,11 @@ def sampler(Y, F_list, G_list, delta, numit=2000):
                                    for j in range(k)])
                 weights = eta[t, i] * f_vals
                 Z[t, i] = rng.multinomial(1, weights / weights.sum())
+
+        # Sample deltas
+
+        for i in range(n):
+            delta[i] = dirichlet.sample_delta(np.argmax(Z[:,i,:], axis=1), k)
 
         # Sample Dirichlet states for each unit
 
@@ -244,7 +259,7 @@ def sampler(Y, F_list, G_list, delta, numit=2000):
             phi[j] = rng.gamma(np.sum(nJ) * T + 1, 1 / obs_error)
 
         # Save values
-        chains.include(theta, phi, W, Z, eta)
+        chains.include(theta, phi, W, Z, eta, delta)
 
     # Return chains dropping burnin phase
     return chains

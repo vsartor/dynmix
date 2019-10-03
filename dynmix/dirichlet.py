@@ -11,9 +11,7 @@ Copyright notice:
 '''
 
 import numpy as np
-import numpy.random as npr
-
-from numba import jit
+import numpy.random as rng
 
 
 def forward_filter(Y, delta, c0):
@@ -64,12 +62,12 @@ def backwards_sampler(c, delta):
     eta = np.empty(c.shape)
 
     #-- Algorithm
-    eta[n-1] = npr.dirichlet(c[n-1], 1)[0]
+    eta[n-1] = rng.dirichlet(c[n-1], 1)[0]
 
     for t in range(n-1, 0, -1):
         csum = c[t-1].sum()
-        S = npr.beta(delta * csum, (1 - delta) * csum)
-        u = npr.dirichlet((1 - delta) * c[t-1], 1)[0]
+        S = rng.beta(delta * csum, (1 - delta) * csum)
+        u = rng.dirichlet((1 - delta) * c[t-1], 1)[0]
         eta[t-1] = S * eta[t] + (1 - S) * u
 
     return eta
@@ -259,7 +257,21 @@ def delta_marginal(delta: float, Z: np.array, k: int) -> float:
     return log_marginal
 
 
-def maximize_delta(Z: np.array, k: int, resolution: int = 40, mean: bool = False):
+def sample_delta(Z: np.array, k: int, resolution: int = 50) -> float:
+    '''
+    Z:          NumPy vector of integers between 0 and k - 1.
+    k:          Integer value higher than 0.
+    resolution: Grid resolution for delta candidates. Integer value higher than 10.
+    '''
+
+    delta_grid = rng.uniform(0.05, 0.95, size=resolution)
+    likelihood = np.exp(delta_marginal(delta_grid, Z, k))
+    if np.all(likelihood == 0):
+        return sample_delta(Z, k, resolution)
+    return rng.choice(delta_grid, 1, p=likelihood / likelihood.sum())[0]
+
+
+def maximize_delta(Z: np.array, k: int, resolution: int = 40) -> float:
     '''
     Z:          NumPy vector of integers between 0 and k - 1.
     k:          Integer value higher than 0.
@@ -267,5 +279,5 @@ def maximize_delta(Z: np.array, k: int, resolution: int = 40, mean: bool = False
     '''
 
     delta_grid = np.linspace(0.01, 0.99, resolution)
-    marginal_likelihood = np.exp(delta_marginal(delta_grid, Z, k))
-    return delta_grid[np.argmax(marginal_likelihood)] if not mean else np.sum(delta_grid * marginal_likelihood) / np.sum(marginal_likelihood)
+    marginal_likelihood = delta_marginal(delta_grid, Z, k)
+    return delta_grid[np.argmax(marginal_likelihood)]
