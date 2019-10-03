@@ -13,6 +13,8 @@ Copyright notice:
 import numpy as np
 import numpy.random as npr
 
+from numba import jit
+
 
 def forward_filter(Y, delta, c0):
     '''
@@ -73,6 +75,39 @@ def backwards_sampler(c, delta):
     return eta
 
 
+def backwards_mc_estimator(c: np.ndarray, delta: float, resolution: int = 10, M: int = 50):
+    '''
+    Estimates the mode through Monte-Carlo simulation.
+    '''
+
+    T, k = c.shape
+
+    grid = np.linspace(0, 1, resolution + 1)
+    grid_lo = grid[:-1]
+    grid_hi = grid[1:]
+    grid_mu = 0.5 * (grid_hi + grid_lo)
+
+    bin_counts = np.zeros((T, k, resolution))
+
+    # Simulate M times, and add a point to the bins that got the value
+    for _ in range(M):
+        mc_sample = backwards_sampler(c, delta)
+        for t in range(T):
+            for j in range(k-1):
+                index = np.argmax(np.logical_and(grid_lo < mc_sample[t,j], mc_sample[t,j] < grid_hi))
+                bin_counts[t, j, index] += 1
+
+    # Get the bins with the highest count
+    eta = np.empty((T, k))
+    for t in range(T):
+        for j in range(k-1):
+            eta[t,j] = grid_mu[np.argmax(bin_counts[t, j])]
+        # Last cluster's weights is one minus the sum of the other columns
+        eta[t,k-1] = 1 - eta[t,:-1].sum()
+
+    return eta
+
+
 def mod_dirichlet_mean(c, a, b):
     '''
     Returns the mean of a Mod-Dirichlet distribution from Appendix A.
@@ -89,6 +124,10 @@ def mod_dirichlet_mean(c, a, b):
     return (b - a) * c / c.sum() + a
 
 
+def dirichlet_mode_core(c):
+    return (c - 1) / (c.sum() - c.size)
+
+
 def mod_dirichlet_mode(c, a, b):
     '''
     Returns the mode of a Mod-Dirichlet distribution from Appendix A.
@@ -102,10 +141,19 @@ def mod_dirichlet_mode(c, a, b):
         The mean vector.
     '''
 
-    if np.any(c < 1):
-        raise RuntimeError('Invalid dirichlet mode')
+    bad_mask = c < 1
+    if np.all(bad_mask):
+        return mod_dirichlet_mode(c + 0.1, a, b)
+    elif np.any(bad_mask):
+        # Recompute for c > 1, and consider a zero for the ones where c < 0
+        good_mask = np.invert(bad_mask)
+        good_mode = dirichlet_mode_core(c[good_mask])
+        dirichlet_mode = np.zeros(c.size)
+        dirichlet_mode[good_mask] = good_mode
+    else:
+        dirichlet_mode = dirichlet_mode_core(c)
 
-    dirichlet_mode = (c - 1) / (c.sum() - c.size)
+    # Mod-Dirichlet transformation
     return (b - a) * dirichlet_mode + a
 
 
@@ -170,14 +218,14 @@ def backwards_estimator(c, delta):
     # it's a known Dirichlet(c[n-1]), and writtn as a Mod-Dirichlet
     # it is Mod-Dirichlet(c[n-1], 0, 1).
 
-    eta[n-1] = mod_dirichlet_mean(c[n-1], 0, 1)
+    eta[n-1] = mod_dirichlet_mode(c[n-1], 0, 1)
 
     # For the other ones we need to find the Mod-Dirichlet parameters
     # conditional the previous mode being the real value.
 
     for t in range(n-2, -1, -1):
         params = mod_dirichlet_parameters(c[t], delta, eta[t+1])
-        eta[t] = mod_dirichlet_mean(*params)
+        eta[t] = mod_dirichlet_mode(*params)
 
     return eta
 
@@ -196,7 +244,7 @@ def delta_marginal(delta: float, Z: np.array, k: int) -> float:
     T = len(Z)
 
     log_marginal = 0
-    c0_one = 0.5
+    c0_one = 0.01
     c0_sum = c0_one * k
 
     for t in range(1, T+1):

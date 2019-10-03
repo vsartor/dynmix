@@ -11,7 +11,6 @@ Copyright notice:
 
 import numpy as np
 import numpy.random as rng
-import scipy.stats as sps
 
 from . import dlm
 from . import common
@@ -37,7 +36,7 @@ def estimator(Y, F_list, G_list, numit=20, mnumit=100, numeps=1e-6):
         W: A list with the W for each cluster.
     '''
 
-    #-- Preamble 
+    #-- Preamble
 
     k, _, p, _, T, _ = common.get_dimensions(Y, F_list, G_list)
     _, theta, phi, eta = common.initialize(Y, F_list, G_list, dynamic=False)
@@ -53,7 +52,7 @@ def estimator(Y, F_list, G_list, numit=20, mnumit=100, numeps=1e-6):
         # and then in the M-step eta = weights. Just set eta = compute_weights.
 
         eta = common.compute_weights(Y, F_list, G_list, theta, phi, eta)
-        
+
         for j in range(k):
             theta[j], V, _, _ = dlm.weighted_mle(Y, F_list[j], G_list[j], eta[:,j],
                                                  maxit=mnumit, numeps=numeps)
@@ -83,13 +82,12 @@ class StaticSamplerResult:
         self.theta = [np.empty((numit, T, p[j])) for j in range(k)]
         self.phi = [np.empty((numit, m)) for j in range(k)]
         self.W = [np.empty((numit, T, p[j], p[j])) for j in range(k)]
-        
+
         self.Z = np.empty((numit, n), dtype=np.int64)
         self.eta = np.empty((numit, n, k))
 
         self._max = numit
         self._curr = 0
-
 
     def include(self, theta, phi, W, Z, eta):
         '''
@@ -112,10 +110,9 @@ class StaticSamplerResult:
             self.theta[j][it,:,:] = theta[j]
             self.phi[j][it,:] = phi[j]
             self.W[j][it,:,:,:] = W[j]
-        
+
         self.Z[it,:] = Z
         self.eta[it,:,:] = eta
-
 
     def means(self):
         """
@@ -149,7 +146,7 @@ def sampler(Y, F_list, G_list, numit=2000, ord_time=0):
         A `StaticSamplerResult` object.
     '''
 
-    #-- Preamble 
+    #-- Preamble
 
     k, m, p, n, T, index_map = common.get_dimensions(Y, F_list, G_list)
     _, theta, phi, eta = common.initialize(Y, F_list, G_list, dynamic=False)
@@ -198,13 +195,13 @@ def sampler(Y, F_list, G_list, numit=2000, ord_time=0):
             for t in range(T):
                 theta[j][t] = rng.multivariate_normal(M[t], C[t])
                 obs_error += ((np.dot(F, theta[j][t]) - member_Y[t])**2).reshape((member_n, m)).sum(axis=0)
-            
+
             phi[j] = rng.gamma(member_n * T + 1, 1 / obs_error)
 
         # Impose ordering restriction
 
         order = np.argsort([theta_[ord_time,0] for theta_ in theta])
-        
+
         theta = [theta[i] for i in order]
         phi = phi[order]
 

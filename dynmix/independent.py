@@ -11,7 +11,6 @@ Copyright notice:
 '''
 
 import numpy as np
-import numpy.random as rng
 
 from . import dlm
 from . import common
@@ -37,7 +36,7 @@ def estimator(Y, F_list, G_list, numit=20, mnumit=100, numeps=1e-6):
         W: A list with the W for each cluster.
     '''
 
-    #-- Preamble 
+    #-- Preamble
 
     k, _, p, _, T, _ = common.get_dimensions(Y, F_list, G_list)
     _, theta, phi, eta = common.initialize(Y, F_list, G_list, dynamic=True)
@@ -53,7 +52,7 @@ def estimator(Y, F_list, G_list, numit=20, mnumit=100, numeps=1e-6):
         # and then in the M-step eta = weights. Just set eta = compute_weights.
 
         eta = common.compute_weights_dyn(Y, F_list, G_list, theta, phi, eta)
-        
+
         for j in range(k):
             theta[j], V, _, _ = dlm.dynamic_weighted_mle(Y, F_list[j], G_list[j], eta[:,:,j],
                                                          maxit=mnumit, numeps=numeps)

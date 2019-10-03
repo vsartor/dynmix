@@ -16,9 +16,13 @@ import scipy.stats as sps
 from . import dlm
 from . import common
 from . import dirichlet
+from . import independent
+
+from typing import List
 
 
-def estimator(Y, F_list, G_list, numit=10, mnumit=100, numeps=1e-6, M=200):
+def estimator(Y: np.ndarray, F_list: List[np.ndarray], G_list: List[np.ndarray], model_delta: bool = False,
+              numit: int = 10, mnumit:int = 100, numeps: float = 1e-6, M: int = 200):
     '''
     Uses Expectation-Maximization to estimate dynamic clusterization of n
     m-variate time-series, all observed throughout the same T time instants.
@@ -27,6 +31,7 @@ def estimator(Y, F_list, G_list, numit=10, mnumit=100, numeps=1e-6, M=200):
         Y: A matrix with T rows and n*m columns.
         F_list: A list with k specifications for the F matrix of each cluster.
         G_list: A list with k specifications for the G matrix of each cluster.
+        model_delta: A boolean indicating if delta is being modelled.
         numit: Number of iterations for the algorithm to run.
         mnumit: Maximum number of iterations for the M-step algorithm to run.
         numeps: Numerical precision for the M-step algorithm.
@@ -43,16 +48,21 @@ def estimator(Y, F_list, G_list, numit=10, mnumit=100, numeps=1e-6, M=200):
 
     k, _, _, n, T, _ = common.get_dimensions(Y, F_list, G_list)
     _, theta, phi, eta = common.initialize(Y, F_list, G_list, dynamic=True)
-    delta = np.ones(n) * 0.5
+
+    print('Initializing...', end=' ')
+    s_eta, _, _, _ = independent.estimator(Y, F_list, G_list)
+    delta = np.clip(np.max(np.mean(s_eta, axis=0), axis=1), 0.05, 0.95)
+    print('Finished initialization.')
 
     c0 = np.ones(k)
     mc_estimates = np.empty((T, k))
-    mc_deltas = np.empty(M)
+    if model_delta:
+        mc_deltas = np.empty(M)
 
     #-- Algorithm
 
     for it in range(numit):
-        print(f'\nIteration {it} out of {numit}', end='')
+        print(f'\nIteration {it+1} out of {numit}', end='')
 
         # Step 0: Expectation step
 
@@ -65,15 +75,29 @@ def estimator(Y, F_list, G_list, numit=10, mnumit=100, numeps=1e-6, M=200):
 
             # Simulate M observations and obtain the mean of all M estimates
             mc_estimates[:,:] = 0
-            mc_deltas[:] = 0
+
             for l in range(M):
+                if i > 20:
+                    i = i + 1 - 1
+
+                # Generate multinomial observations
                 mc_Y = np.array([rng.multinomial(1, x) for x in weights[:,i,:]])
-                mc_Z = np.argmax(mc_Y, axis=1)
-                mc_deltas[l] = dirichlet.maximize_delta(mc_Z, k)
-                c = dirichlet.forward_filter(mc_Y, mc_deltas[l], c0)
-                mc_estimates += dirichlet.backwards_estimator(c, delta[i]) / M
-            delta[i] = np.mean(mc_deltas)
+                if model_delta:
+                    # If modelling delta, find maximum for delta and use it for c's computation
+                    mc_Z = np.argmax(mc_Y, axis=1)
+                    mc_deltas[l] = dirichlet.maximize_delta(mc_Z, k)
+                    c = dirichlet.forward_filter(mc_Y, mc_deltas[l], c0)
+                else:
+                    # Not modelling delta: use computed delta for everything
+                    c = dirichlet.forward_filter(mc_Y, delta[i], c0)
+
+                # Sum the mean parcel
+                mc_estimates += dirichlet.backwards_mc_estimator(c, delta[i]) / M
+
+            # Save results
             eta[:,i,:] = mc_estimates
+            if model_delta:
+                delta[i] = np.mean(mc_deltas)
 
         # Step 2: Maximize the cluster parameters
 
@@ -83,6 +107,8 @@ def estimator(Y, F_list, G_list, numit=10, mnumit=100, numeps=1e-6, M=200):
                                                           maxit=mnumit, numeps=numeps)
             phi[j,:] = 1 / np.diag(V)
             W.append(Wj)
+
+    print('Done.')
 
     return eta, theta, phi, W, delta
 
