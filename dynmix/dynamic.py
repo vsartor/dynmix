@@ -18,21 +18,18 @@ from . import common
 from . import dirichlet
 from . import independent
 
-from tqdm import tqdm
-from typing import List
+from tqdm import trange, tqdm
 
 
-def estimator(Y: np.ndarray, F_list: List[np.ndarray], G_list: List[np.ndarray], model_delta: bool = False,
-              numit: int = 10, mnumit:int = 100, numeps: float = 1e-6, M: int = 200):
+def estimator(Y, spec, numit=10, mnumit=100, numeps=1e-6, M=200):
     '''
     Uses Expectation-Maximization to estimate dynamic clusterization of n
     m-variate time-series, all observed throughout the same T time instants.
 
     Args:
         Y: A matrix with T rows and n*m columns.
-        F_list: A list with k specifications for the F matrix of each cluster.
-        G_list: A list with k specifications for the G matrix of each cluster.
-        model_delta: A boolean indicating if delta is being modelled.
+        spec: Either the number of clusters or a tuple with a list of
+              observational matrices and a list of evolutional matrices.
         numit: Number of iterations for the algorithm to run.
         mnumit: Maximum number of iterations for the M-step algorithm to run.
         numeps: Numerical precision for the M-step algorithm.
@@ -46,70 +43,48 @@ def estimator(Y: np.ndarray, F_list: List[np.ndarray], G_list: List[np.ndarray],
     '''
 
     #-- Preamble
-
+    F_list, G_list = common.handle_spec(spec)
     k, _, _, n, T, _ = common.get_dimensions(Y, F_list, G_list)
     _, theta, phi, eta = common.initialize(Y, F_list, G_list, dynamic=True)
 
-    print('Initializing...', end=' ')
-    s_eta, _, _, _ = independent.estimator(Y, F_list, G_list)
+    s_eta, _, _, _ = independent.estimator(Y, F_list, G_list, numit=10)
     delta = np.clip(np.max(np.mean(s_eta, axis=0), axis=1), 0.05, 0.95)
-    print('Finished initialization.')
+    delta[np.logical_and(0.5 < delta, delta < 0.9)] = 0.5
 
-    c0 = np.ones(k)
+    c0 = np.ones(k) * 0.1
     mc_estimates = np.empty((T, k))
-    if model_delta:
-        mc_deltas = np.empty(M)
 
     #-- Algorithm
 
-    for it in range(numit):
-        print(f'\nIteration {it+1} out of {numit}', end='')
+    with tqdm(total=numit * n) as progress_bar:
+        for it in range(numit):
+            # Step 0: Expectation step
 
-        # Step 0: Expectation step
+            weights = common.compute_weights_dyn(Y, F_list, G_list, theta, phi, eta)
 
-        weights = common.compute_weights_dyn(Y, F_list, G_list, theta, phi, eta)
+            # Step 1: Maximize the weights for each observation
 
-        # Step 1: Maximize the weights for each observation
+            for i in range(n):
+                progress_bar.update()
 
-        for i in range(n):
-            print('.', end='')
+                # Simulate M observations and obtain the mean of all M estimates
+                mc_estimates[:,:] = 0
 
-            # Simulate M observations and obtain the mean of all M estimates
-            mc_estimates[:,:] = 0
-
-            for l in range(M):
-                if i > 20:
-                    i = i + 1 - 1
-
-                # Generate multinomial observations
-                mc_Y = np.array([rng.multinomial(1, x) for x in weights[:,i,:]])
-                if model_delta:
-                    # If modelling delta, find maximum for delta and use it for c's computation
-                    mc_Z = np.argmax(mc_Y, axis=1)
-                    mc_deltas[l] = dirichlet.maximize_delta(mc_Z, k)
-                    c = dirichlet.forward_filter(mc_Y, mc_deltas[l], c0)
-                else:
-                    # Not modelling delta: use computed delta for everything
+                for l in range(M):
+                    mc_Y = np.array([rng.multinomial(1, x) for x in weights[:,i,:]])
                     c = dirichlet.forward_filter(mc_Y, delta[i], c0)
+                    mc_estimates += dirichlet.backwards_estimator(c, delta[i]) / M
 
-                # Sum the mean parcel
-                mc_estimates += dirichlet.backwards_mc_estimator(c, delta[i]) / M
+                eta[:,i,:] = mc_estimates
 
-            # Save results
-            eta[:,i,:] = mc_estimates
-            if model_delta:
-                delta[i] = np.mean(mc_deltas)
+            # Step 2: Maximize the cluster parameters
 
-        # Step 2: Maximize the cluster parameters
-
-        W = []
-        for j in range(k):
-            theta[j], V, Wj, _ = dlm.dynamic_weighted_mle(Y, F_list[j], G_list[j], eta[:,:,j],
-                                                          maxit=mnumit, numeps=numeps)
-            phi[j,:] = 1 / np.diag(V)
-            W.append(Wj)
-
-    print('Done.')
+            W = []
+            for j in range(k):
+                theta[j], V, Wj, _ = dlm.dynamic_weighted_mle(Y, F_list[j], G_list[j], eta[:,:,j],
+                                                              maxit=mnumit, numeps=numeps)
+                phi[j,:] = 1 / np.diag(V)
+                W.append(Wj)
 
     return eta, theta, phi, W, delta
 
@@ -119,7 +94,7 @@ class DynamicSamplerResult:
     Holds the results from a `sampler` run from the `dynamic` module.
     '''
 
-    def __init__(self, numit, k, m, p, n, T):
+    def __init__(self, numit, k, m, p, n, T, model_delta, delta=None):
         self.k = k
 
         self.theta = [np.empty((numit, T, p[j])) for j in range(k)]
@@ -129,12 +104,16 @@ class DynamicSamplerResult:
         self.Z = np.empty((numit, T, n), dtype=np.int64)
         self.eta = np.empty((numit, T, n, k))
 
-        self.delta = np.empty((numit, n))
+        self.model_delta = model_delta
+        if model_delta:
+            self.delta = np.empty((numit, n))
+        else:
+            self.delta = delta
 
         self._max = numit
         self._curr = 0
 
-    def include(self, theta, phi, W, Z, eta, delta):
+    def include(self, theta, phi, W, Z, eta, delta=None):
         '''
         Include samples from a new iteration into the result.
         '''
@@ -159,7 +138,8 @@ class DynamicSamplerResult:
         self.Z[it,:,:] = Z.argmax(axis=2)
         self.eta[it,:,:,:] = eta
 
-        self.delta[it,:] = delta
+        if self.model_delta:
+            self.delta[it,:] = delta
 
     def means(self):
         """
@@ -172,33 +152,45 @@ class DynamicSamplerResult:
 
         Z = self.Z.mean(axis=0)
         eta = self.eta.mean(axis=0)
-        delta = self.delta.mean(axis=0)
+
+        if self.model_delta:
+            delta = self.delta.mean(axis=0)
+        else:
+            delta = self.delta
 
         return theta, phi, W, Z, eta, delta
 
 
-def sampler(Y: np.ndarray, F_list: List[np.ndarray], G_list: List[np.ndarray], num_samples: int = 2000):
+def sampler(Y, spec=None, model_delta=False, num_samples=2000):
     '''
-    Obtain samples from the parameter's posterior distributions based on
-    Gibbs sampling and Forward Filtering and Backwards Sampling procedures.
+    Obtain samples from the parameter's posterior distributions based on Gibbs sampling and
+    Forward Filtering and Backwards Sampling procedures.
 
     Args:
-        Y:      A matrix with T rows and n*m columns.
-        k:      Number of clusters.
-        numit:  Number of samples to be generated.
+        Y:           A matrix with T rows and n*m columns.
+        spec:        Either the number of clusters or a tuple with a list of observational matrices
+                     and a list of evolutional matrices.
+        model_delta: If the Dirichlet's discount factor should be modelled.
+        numit:       Number of samples to be generated.
 
     Returns:
         A DynamicSamplerResult object.
     '''
 
     # Initialize model parameters
+    F_list, G_list = common.handle_spec(spec)
     k, m, p, n, T, idx_map = common.get_dimensions(Y, F_list, G_list)
     _, theta, phi, eta = common.initialize(Y, F_list, G_list, dynamic=True)
-    delta = np.ones(n) * 0.5
-    Z = np.empty((T, n, k))  # First thing that happens is generating Z, so it doesn't have to be explicitly initialized.
+
+    s_eta, _, _, _ = independent.estimator(Y, F_list, G_list, numit=10)
+    delta = np.clip(np.max(np.mean(s_eta, axis=0), axis=1), 0.05, 0.95)
+    delta[np.logical_and(0.5 < delta, delta < 0.9)] = 0.5
+
+    # First thing that happens is generating Z, so it doesn't have to be explicitly initialized.
+    Z = np.empty((T, n, k))
 
     # Initialize the object to be returned
-    chains = DynamicSamplerResult(num_samples, k, m, p, n, T)
+    chains = DynamicSamplerResult(num_samples, k, m, p, n, T, model_delta, delta)
 
     # Parameter for the prior distribution of each delta_i
     c0 = np.ones(k) * 0.1
@@ -208,7 +200,7 @@ def sampler(Y: np.ndarray, F_list: List[np.ndarray], G_list: List[np.ndarray], n
 
     #-- Gibbs sampling
 
-    for it in tqdm(range(num_samples)):
+    for it in trange(num_samples):
         #-- Sampling from the indicator variables
 
         sigma = [np.diag(1. / phi[j]) for j in range(k)]
@@ -221,8 +213,9 @@ def sampler(Y: np.ndarray, F_list: List[np.ndarray], G_list: List[np.ndarray], n
 
         #-- Sampling for the Dirichlet model discount factor
 
-        for i in range(n):
-            delta[i] = dirichlet.sample_delta(np.argmax(Z[:,i,:], axis=1), k)
+        if model_delta:
+            for i in range(n):
+                delta[i] = dirichlet.sample_delta(np.argmax(Z[:,i,:], axis=1), k)
 
         #-- Sampling the clustering weights for each observation
 
@@ -258,7 +251,7 @@ def sampler(Y: np.ndarray, F_list: List[np.ndarray], G_list: List[np.ndarray], n
             phi[j] = rng.gamma(np.sum(n_j) * T + 1, 1 / obs_error)
 
         # Save values
-        chains.include(theta, phi, W, Z, eta, delta)
+        chains.include(theta, phi, W, Z, eta, delta if model_delta else None)
 
     # Return chains dropping burnin phase
     return chains

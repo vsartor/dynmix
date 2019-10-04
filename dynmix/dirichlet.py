@@ -13,7 +13,10 @@ Copyright notice:
 import numpy as np
 import numpy.random as rng
 
+from numba import njit
 
+
+@njit
 def forward_filter(Y, delta, c0):
     '''
     Performs forward filtering algorithm for a Dirichlet process as
@@ -171,7 +174,7 @@ def mod_dirichlet_parameters(c, delta, eta):
     beta = (1 - delta) * c_sum
 
     if alpha < 1 and beta < 1:
-        raise RuntimeError('Invalid mode for S')
+        return mod_dirichlet_parameters(c + 0.1, delta, eta)
     elif alpha <= 1:
         s = 0
     elif beta <= 1:
@@ -209,14 +212,14 @@ def backwards_estimator(c: np.ndarray, delta: float) -> np.ndarray:
     # it's a known Dirichlet(c[n-1]), and writtn as a Mod-Dirichlet
     # it is Mod-Dirichlet(c[n-1], 0, 1).
 
-    eta[n-1] = mod_dirichlet_mode(c[n-1], 0, 1)
+    eta[n-1] = mod_dirichlet_mean(c[n-1], 0, 1)
 
     # For the other ones we need to find the Mod-Dirichlet parameters
     # conditional the previous mode being the real value.
 
     for t in range(n-2, -1, -1):
         params = mod_dirichlet_parameters(c[t], delta, eta[t+1])
-        eta[t] = mod_dirichlet_mode(*params)
+        eta[t] = mod_dirichlet_mean(*params)
 
     return eta
 

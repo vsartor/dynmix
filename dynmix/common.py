@@ -16,6 +16,15 @@ import scipy.stats as sps
 from . import dlm
 
 
+def handle_spec(spec):
+    if type(spec) is int:
+        return ([np.eye(1) for j in range(spec)], [np.eye(1) for j in range(spec)])
+    elif type(spec) is tuple and len(spec) == 2:
+        return spec
+
+    raise ValueError("`spec` should be either an integer or two lists of matrices")
+
+
 def get_dimensions(Y, F_list, G_list):
     '''
     Returns the problem dimensions given the cannonical arguments.
@@ -58,7 +67,7 @@ def get_dimensions(Y, F_list, G_list):
     T = Y.shape[0]
 
     # Create a map associating the observation index with indexes in Y
-    index_mask = {i: range(i * m, (i + 1) * m) for i in range(n)}
+    index_mask = [range(i * m, (i + 1) * m) for i in range(n)]
 
     return k, m, p, n, T, index_mask
 
