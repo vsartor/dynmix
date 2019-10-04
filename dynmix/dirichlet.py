@@ -29,12 +29,8 @@ def forward_filter(Y, delta, c0):
         of the Dirichlet states.
     '''
 
-    #-- Preamble
-
     n, k = Y.shape
     c = np.empty((n, k))
-
-    #-- Algorithm
 
     c[0] = delta * c0 + Y[0]
     for t in range(1, n):
@@ -56,12 +52,9 @@ def backwards_sampler(c, delta):
         eta: A sample from the posterior distribution.
     '''
 
-    #-- Preamble
-
     n = c.shape[0]
     eta = np.empty(c.shape)
 
-    #-- Algorithm
     eta[n-1] = rng.dirichlet(c[n-1], 1)[0]
 
     for t in range(n-1, 0, -1):
@@ -195,7 +188,7 @@ def mod_dirichlet_parameters(c, delta, eta):
     return c, a, b
 
 
-def backwards_estimator(c, delta):
+def backwards_estimator(c: np.ndarray, delta: float) -> np.ndarray:
     '''
     Instead of performing usual backwards sampling, it iterates
     backwards picking values for omega according to the mode of
@@ -259,24 +252,38 @@ def delta_marginal(delta: float, Z: np.array, k: int) -> float:
 
 def sample_delta(Z: np.array, k: int, resolution: int = 50) -> float:
     '''
-    Z:          NumPy vector of integers between 0 and k - 1.
+    Obtains a sample from the marginal of the Dirichlet Model's discount factor.
+
+    Z:          Vector of integers between 0 and k - 1.
     k:          Integer value higher than 0.
     resolution: Grid resolution for delta candidates. Integer value higher than 10.
     '''
+
+    #-- Uses a Sampling Importance Resampling approach for simulating the values:
+    #--     1. Generates some samples from a candidate distribution
+    #--     2. Computes a weight which is based on the likelihood of each point
+    #--     3. Resample the original samples from step 1, weighted by the values from step 2
 
     delta_grid = rng.uniform(0.05, 0.95, size=resolution)
     likelihood = np.exp(delta_marginal(delta_grid, Z, k))
+
     if np.all(likelihood == 0):
+        # The candidates are all numerically impossible, rerun the routine
         return sample_delta(Z, k, resolution)
+
     return rng.choice(delta_grid, 1, p=likelihood / likelihood.sum())[0]
 
 
-def maximize_delta(Z: np.array, k: int, resolution: int = 40) -> float:
+def maximize_delta(Z: np.array, k: int, resolution: int = 10) -> float:
     '''
-    Z:          NumPy vector of integers between 0 and k - 1.
+    Obtains the maximum from the marginal of the Dirichlet Model's discount factor.
+
+    Z:          Vector of integers between 0 and k - 1.
     k:          Integer value higher than 0.
     resolution: Grid resolution for delta candidates. Integer value higher than 10.
     '''
+
+    # Simple grid-based discrete optimization.
 
     delta_grid = np.linspace(0.01, 0.99, resolution)
     marginal_likelihood = delta_marginal(delta_grid, Z, k)
