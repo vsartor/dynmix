@@ -19,7 +19,7 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='dynmix',
-    version='1.1.1',
+    version='1.1.2',
     description='Dynamix Membership Mixture Models',
     long_description=long_description,
     long_description_content_type='text/markdown',
@@ -37,5 +37,5 @@ setup(
     ],
     keywords='mixture model bayesian statistics dynamic',
     packages=['dynmix'],
-    install_requires=['numpy', 'scipy'],
+    install_requires=['numpy', 'scipy', 'numba'],
 )
