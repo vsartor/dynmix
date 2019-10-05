@@ -235,17 +235,6 @@ def filter_df_dyn(Y, F, G, V, df=0.7, m0=None, C0=None):
 
     T = len(Y)
     p = G.shape[0]
-    n = [len(y) for y in Y]
-
-    # TODO: Since this is an internal function consistency check, remove this once working.
-    for t in range(T):
-        if V[t].shape[0] != n[t] or V[t].shape[1] != n[t]:
-            raise ValueError("V dimension mismatch")
-        if F[t].shape[0] != n[t] or F[t].shape[1] != p:
-            raise ValueError("F dimension mismatch")
-
-    if G.shape[1] != p:
-        raise ValueError("G dimension mismatch")
 
     m0, C0 = _process_prior(Y, p, m0, C0)
 
@@ -583,7 +572,7 @@ def weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
 
 
 def dynamic_weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
-                         numeps=1e-10, verbose=False, weighteps=1e-3):
+                         numeps=1e-10):
     '''
     Obtains weighted maximum likelihood estimates for a general DLM
     assuming a discount factor for the latent state evolution and using
@@ -610,93 +599,64 @@ def dynamic_weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
         converged: Boolean stating if the algorithm converged.
     '''
 
-    # Dimension of a single observation at one time point
-    m = F.shape[0]
+    m, p = F.shape
+    T = y.shape[0]
 
-    # Number of observations
     n = y.shape[1] / m
     if int(n) != n:
         raise ValueError('Dimension of y not multiple of dimension implied by F')
     n = int(n)
 
-    # Observation masks: associates observation index with matrix indexes
-    index_mask = {i: range(i * m, (i + 1) * m) for i in range(n)}
+    index_mask = [range(i * m, (i + 1) * m) for i in range(n)]
 
-    if verbose:
-        print(f'There are {n} observations each with dimension {m}.')
-
-    # Time dimension
-    T = y.shape[0]
-
-    # State dimension
-    p = F.shape[1]
-
-    # Validate weight vector
-    if type(weights) in (int, float):
-        raise ValueError('Expected a 2-dimension array, got atomic value.')
-    elif type(weights) != np.ndarray:
-        raise ValueError('Expected a 2-dimenasional ndarray.')
-    elif weights.shape != (T, n):
-        raise ValueError(f'Unexpected shape for weights. Expected {(T,n)}, got {weights.shape}.')
-
-    # IMPORTANT STEP:
-    # See "IMPORTANT STEP" at weighted_mle. The difference is that here we need to do this for
-    # each time instant.
+    # For each time-instant, only select the observational units with a relevant weights.
+    # This is done to avoid numerically small weights which will lead do exceedingly high
+    # variances that will mess up numerical accuracies. The rationale is that if the weight
+    # is too low, the effect of the observational unit would have if included would be too
+    # small anyway.
 
     good_n = []
     good_y = []
     good_weights = []
 
     for t in range(T):
-        good_weight_mask = weights[t] > weighteps
-
-        if verbose:
-            print(f'{np.sum(not good_weight_mask)} observations are being dropped at time {t}.')
-
-        # Select only observations with good weights
+        good_weight_mask = weights[t] > 1e-3
         good_indexes = [index for i in range(n) for index in index_mask[i] if good_weight_mask[i]]
         good_y.append(y[t,good_indexes])
-
-        # Update the value of `weights` and `n`
         good_weights.append(weights[t,good_weight_mask])
         good_n.append(len(good_weights[t]))
 
-    # Initialize values
-    vars = np.ones(m)
-    theta = np.ones((T, p))
+    # Initialization to arbitrary but numerically reasonable values
+    variances = np.ones(m)
+    theta = np.zeros((T, p))
 
-    # Build the tiled observational matrix
-    FF = [np.tile(F, (n, 1)) for n in good_n]
+    F_tiled = [np.tile(F, (n, 1)) for n in good_n]
 
-    # Iterate on maximums
     for it in range(maxit):
         old_theta = theta
 
-        # Build weighted observational matrix
-        weighted_vars = [np.tile(vars, good_n[t]) * np.repeat(1 / good_weights[t], m)
-                         for t in range(T)]
-        V = [np.diag(weighted_var) for weighted_var in weighted_vars]
+        weighted_variances = [np.tile(variances, good_n[t]) * np.repeat(1 / good_weights[t], m) for t in range(T)]
+        V_tiled = [np.diag(weighted_var) for weighted_var in weighted_variances]
 
-        # Maximum for states is the mean for the normal
-        a, R, M, C, W = filter_df_dyn(good_y, FF, G, V, df, m0, C0)
+        # Maximum for states
+
+        a, R, M, C, W = filter_df_dyn(good_y, F_tiled, G, V_tiled, df, m0, C0)
         theta, _ = smoother(G, a, R, M, C)
 
-        # Maximum for the variances
-        vars = np.zeros(m)
+        # Maximum for variances
+
+        variances[:] = 0
         for t in range(T):
             for i in range(good_n[t]):
                 mask = index_mask[i]
-                vars += good_weights[t][i] * (good_y[t][mask] - np.dot(F, theta[t]))**2 / T
-        vars /= weights.sum()
+                variances += good_weights[t][i] * (good_y[t][mask] - np.dot(F, theta[t]))**2 / T
+        variances /= weights.sum()
 
-        # Stop if convergence condition is satisfied
+        # Stop-condition
+
         if np.abs(theta - old_theta).mean() < numeps:
-            if verbose:
-                print(f'Convergence condition reached in {it} iterations.')
             break
     else:
-        if verbose:
-            print(f'Convergence condition NOT reached in {maxit} iterations.')
-        return theta, np.diag(vars), W, False
+        return theta, np.diag(variances), W, False
 
-    return theta, np.diag(vars), W, True
+    return theta, np.diag(variances), W, True
