@@ -82,7 +82,7 @@ def compute_weights_dyn(Y, F_list, G_list, theta, phi, eta=None):
         F_list: A list with k specifications for the F matrix of each cluster.
         G_list: A list with k specifications for the G matrix of each cluster.
         theta: The current estimates of theta.
-        phi: The current estimates of phi.
+        phi: The current estimates of the precisions.
         eta: The current estimates of eta. If not passed, disconsiders it.
 
     Returns:

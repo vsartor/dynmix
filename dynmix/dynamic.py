@@ -21,7 +21,7 @@ from . import independent
 from tqdm import trange, tqdm
 
 
-def estimator(Y, spec, numit=10, mnumit=100, numeps=1e-6, M=200):
+def estimator(Y, spec, numit=10, mnumit=100, numeps=1e-6, M=200, phi_priors=None):
     '''
     Uses Expectation-Maximization to estimate dynamic clusterization of n
     m-variate time-series, all observed throughout the same T time instants.
@@ -34,6 +34,7 @@ def estimator(Y, spec, numit=10, mnumit=100, numeps=1e-6, M=200):
         mnumit: Maximum number of iterations for the M-step algorithm to run.
         numeps: Numerical precision for the M-step algorithm.
         M: Number of Monte-Carlo simulations of dummy variables.
+        phi_priors: A list of tuples with prior parameters for the observational variances.
 
     Returns:
         eta: A list with the eta for each time-series.
@@ -53,6 +54,8 @@ def estimator(Y, spec, numit=10, mnumit=100, numeps=1e-6, M=200):
 
     c0 = np.ones(k) * 0.1
     mc_estimates = np.empty((T, k))
+
+    phi_priors = phi_priors if phi_priors is not None else [(0, 0)] * k
 
     #-- Algorithm
 
@@ -82,7 +85,7 @@ def estimator(Y, spec, numit=10, mnumit=100, numeps=1e-6, M=200):
             W = []
             for j in range(k):
                 theta[j], V, Wj, _ = dlm.dynamic_weighted_mle(Y, F_list[j], G_list[j], eta[:,:,j],
-                                                              maxit=mnumit, numeps=numeps)
+                                                              maxit=mnumit, numeps=numeps, phi_prior=phi_priors[j])
                 phi[j,:] = 1 / np.diag(V)
                 W.append(Wj)
 

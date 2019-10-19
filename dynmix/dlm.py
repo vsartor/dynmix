@@ -572,7 +572,7 @@ def weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
 
 
 def dynamic_weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
-                         numeps=1e-10):
+                         numeps=1e-10, phi_prior=(0,0)):
     '''
     Obtains weighted maximum likelihood estimates for a general DLM
     assuming a discount factor for the latent state evolution and using
@@ -591,6 +591,7 @@ def dynamic_weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
         numeps: Small numerical value for convergence purposes. Defaults to 1e-10.
         verbose: Print out information about execution.
         weighteps: Small value below which weights are considered to be zero. Defaults to 1e-3.
+        phi_prior: A tuple with prior parameters for the variances.
 
     Returns:
         theta: The estimates for the states.
@@ -645,12 +646,12 @@ def dynamic_weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
 
         # Maximum for variances
 
-        variances[:] = 0
+        variances[:] = phi_prior[0]
         for t in range(T):
             for i in range(good_n[t]):
                 mask = index_mask[i]
                 variances += good_weights[t][i] * (good_y[t][mask] - np.dot(F, theta[t]))**2 / T
-        variances /= weights.sum()
+        variances /= weights.sum() + phi_prior[1]
 
         # Stop-condition
 
