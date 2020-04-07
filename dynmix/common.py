@@ -14,22 +14,25 @@ import scipy.stats as sps
 from . import dlm
 
 
-def handle_spec(spec):
+def dlm_matrices_from_model_specification(model_specification):
     """
-    I have no idea what this does yet because past me couldn't bother with a docstring.
+    Handles model specification.
 
     Args:
-        spec: Idk
+        model_specification: Either the number of cluster, or a Tuple containing the matrices.
 
     Returns:
-        Idk
+        Two lists, each with the F and G matrices, respectively, for each cluster.
     """
 
-    if isinstance(spec, int):
-        return [np.eye(1) for j in range(spec)], [np.eye(1) for j in range(spec)]
+    if isinstance(model_specification, int):
+        return (
+            [np.eye(1) for j in range(model_specification)],
+            [np.eye(1) for j in range(model_specification)],
+        )
 
-    if isinstance(spec, tuple) and len(spec) == 2:
-        return spec
+    if isinstance(model_specification, tuple) and len(model_specification) == 2:
+        return model_specification
 
     raise ValueError("`spec` should be either an integer or two lists of matrices")
 

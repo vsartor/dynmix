@@ -38,7 +38,7 @@ def estimator(Y, spec, numit=10, mnumit=100, numeps=1e-6, M=200, phi_priors=None
     """
 
     # -- Preamble
-    F_list, G_list = common.handle_spec(spec)
+    F_list, G_list = common.dlm_matrices_from_model_specification(spec)
     k, _, _, n, T, _ = common.get_dimensions(Y, F_list, G_list)
     _, theta, phi, eta = common.initialize(Y, F_list, G_list, dynamic=True)
 
@@ -165,15 +165,15 @@ class DynamicSamplerResult:
         return theta, phi, W, Z, eta, delta
 
 
-def sampler(Y, spec=None, model_delta=False, num_samples=2000):
+def sampler(Y, model_specification, model_delta=False, num_samples=2000):
     """
     Obtain samples from the parameter's posterior distributions based on Gibbs sampling and
     Forward Filtering and Backwards Sampling procedures.
 
     Args:
         Y:           A matrix with T rows and n*m columns.
-        spec:        Either the number of clusters or a tuple with a list of observational matrices
-                     and a list of evolutional matrices.
+        model_specification: Either the number of clusters or a tuple with a list of observational matrices
+                             and a list of evolutional matrices.
         model_delta: If the Dirichlet's discount factor should be modelled.
         numit:       Number of samples to be generated.
 
@@ -182,7 +182,7 @@ def sampler(Y, spec=None, model_delta=False, num_samples=2000):
     """
 
     # Initialize model parameters
-    F_list, G_list = common.handle_spec(spec)
+    F_list, G_list = common.dlm_matrices_from_model_specification(model_specification)
     k, m, p, n, T, idx_map = common.get_dimensions(Y, F_list, G_list)
     _, theta, phi, eta = common.initialize(Y, F_list, G_list, dynamic=True)
 
