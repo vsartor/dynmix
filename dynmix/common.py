@@ -1,13 +1,11 @@
-'''
+"""
 This module implements common utility functions for the static, independent
 and dynamic modules.
 
-Copyright notice:
-    Copyright (c) Victhor S. Sartório. All rights reserved. This
-    Source Code Form is subject to the terms of the Mozilla Public
-    License, v. 2.0. If a copy of the MPL was not distributed with
-    this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-'''
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+"""
 
 import numpy as np
 import numpy.random as rng
@@ -17,16 +15,27 @@ from . import dlm
 
 
 def handle_spec(spec):
-    if type(spec) is int:
-        return ([np.eye(1) for j in range(spec)], [np.eye(1) for j in range(spec)])
-    elif type(spec) is tuple and len(spec) == 2:
+    """
+    I have no idea what this does yet because past me couldn't bother with a docstring.
+
+    Args:
+        spec: Idk
+
+    Returns:
+        Idk
+    """
+
+    if isinstance(spec, int):
+        return [np.eye(1) for j in range(spec)], [np.eye(1) for j in range(spec)]
+
+    if isinstance(spec, tuple) and len(spec) == 2:
         return spec
 
     raise ValueError("`spec` should be either an integer or two lists of matrices")
 
 
 def get_dimensions(Y, F_list, G_list):
-    '''
+    """
     Returns the problem dimensions given the cannonical arguments.
 
     Args:
@@ -41,10 +50,13 @@ def get_dimensions(Y, F_list, G_list):
         n: Number of replicates.
         T: Size of time window.
         index_mask: A map from the observation index to the corresponding Y indexes.
-    '''
+    """
 
     # The number of clusters
     k = len(F_list)
+
+    if k != len(G_list):
+        raise ValueError("F_list and G_list disagree on number of clusters k")
 
     # The dimension of a single observation is m, and is given by F
     # Note that all F should have the same number of rows, since only
@@ -59,8 +71,10 @@ def get_dimensions(Y, F_list, G_list):
     # n*m we need only to divide and perform a small check to make sure
     # everything is ok.
     n = Y.shape[1] / m
+
     if n != int(n):
-        raise ValueError('Bad dimensions n and m')
+        raise ValueError("Dimension of Y_t is not a multiple of number of rows in F")
+
     n = int(n)
 
     # The number of time instants is T and is given by the rows of Y
@@ -73,7 +87,7 @@ def get_dimensions(Y, F_list, G_list):
 
 
 def compute_weights_dyn(Y, F_list, G_list, theta, phi, eta=None):
-    '''
+    """
     Compute the membership weights of the mixture model. This is essentially a
     function for the result of the E-step of the dynamic mixture of DLMs model.
 
@@ -87,9 +101,9 @@ def compute_weights_dyn(Y, F_list, G_list, theta, phi, eta=None):
 
     Returns:
         weights: The weights array.
-    '''
+    """
 
-    #-- Preamble
+    # -- Preamble
 
     k, _, _, n, T, idxmap = get_dimensions(Y, F_list, G_list)
     weights = np.empty((T, n, k))
@@ -98,7 +112,7 @@ def compute_weights_dyn(Y, F_list, G_list, theta, phi, eta=None):
         # Disconsider eta from the computation
         eta = np.ones((T, n, k))
 
-    #-- Algorithm
+    # -- Algorithm
 
     for t in range(T):
         for i in range(n):
@@ -106,14 +120,14 @@ def compute_weights_dyn(Y, F_list, G_list, theta, phi, eta=None):
                 F = F_list[j]
                 thetaj = theta[j]
                 V = np.diag(1 / phi[j])
-                weights[t,i,j] = sps.multivariate_normal.pdf(Y[t,idxmap[i]], np.dot(F, thetaj[t]), V)
-            weights[t,i] /= weights[t,i].sum()
+                weights[t, i, j] = sps.multivariate_normal.pdf(Y[t, idxmap[i]], np.dot(F, thetaj[t]), V)
+            weights[t, i] /= weights[t, i].sum()
 
     return weights
 
 
 def compute_weights(Y, F_list, G_list, theta, phi, eta=None):
-    '''
+    """
     Compute the membership weights of the mixture model. This is essentially a
     function for the result of the E-step of the static mixture of DLMs model.
 
@@ -127,9 +141,9 @@ def compute_weights(Y, F_list, G_list, theta, phi, eta=None):
 
     Returns:
         weights: The weights array.
-    '''
+    """
 
-    #-- Preamble
+    # -- Preamble
 
     k, _, _, n, T, idxmap = get_dimensions(Y, F_list, G_list)
     weights = np.empty((n, k))
@@ -138,7 +152,7 @@ def compute_weights(Y, F_list, G_list, theta, phi, eta=None):
         # Disconsider eta from the computation
         eta = np.ones((n, k))
 
-    #-- Algorithm
+    # -- Algorithm
 
     # For each observation, compute the weights
     for i in range(n):
@@ -155,7 +169,7 @@ def compute_weights(Y, F_list, G_list, theta, phi, eta=None):
             thetaj = theta[j]
             V = np.diag(1 / phi[j])
             for t in range(T):
-                pdfs[j,t] = sps.multivariate_normal.pdf(Y[t,obs_idx], np.dot(F, thetaj[t]), V)
+                pdfs[j, t] = sps.multivariate_normal.pdf(Y[t, obs_idx], np.dot(F, thetaj[t]), V)
 
             # Zeros become minimum non-zero computed value
             zero_mask = pdfs[j] == 0
@@ -171,17 +185,17 @@ def compute_weights(Y, F_list, G_list, theta, phi, eta=None):
         O_bar = np.mean(np.log10(pdfs[include_mask]), axis=1).max()
 
         # Adjust the order of magnitude
-        pdfs *= 10**(-O_bar)
+        pdfs *= 10 ** (-O_bar)
 
         # Perform usual computations based on the entries of pdfs increasing numerical accuracy
         for j in range(k):
-            weights[i,j] = eta[i,j] * pdfs[j].prod()
+            weights[i, j] = eta[i, j] * pdfs[j].prod()
 
         if weights[i].sum() == 0:
             # If it wasn't enough, improve precision
             pdfs128 = np.array(pdfs, np.float128)
             for j in range(k):
-                weights[i,j] = eta[i,j] * pdfs128[j].prod()
+                weights[i, j] = eta[i, j] * pdfs128[j].prod()
         elif np.any(np.isinf(weights[i])):
             # If any overflowed, give them a 1 and others 0
             mask = np.isinf(weights[i])
@@ -194,7 +208,7 @@ def compute_weights(Y, F_list, G_list, theta, phi, eta=None):
 
 
 def initialize(Y, F_list, G_list, dynamic):
-    '''
+    """
     Uses an adaptation of the kmeans++ to initialize the model parameters for
     the mixture of DLMs.
 
@@ -208,9 +222,9 @@ def initialize(Y, F_list, G_list, dynamic):
         theta: A list with the theta for each cluster.
         phi: A list with the phi for each cluster.
         eta: A list with the eta for each time-series.
-    '''
+    """
 
-    #-- Initialization
+    # -- Initialization
 
     k, m, p, n, T, index_mask = get_dimensions(Y, F_list, G_list)
 
@@ -218,11 +232,11 @@ def initialize(Y, F_list, G_list, dynamic):
 
     phi = np.ones((k, m))
 
-    #-- Algorithm
+    # -- Algorithm
 
     # Step 0: Initialize algorithm-specific variables
     centroids = []
-    candidates = [i for i in range(n)]
+    candidates = list(range(n))
     distances = []
 
     # Step 1: Pick an observation at random
@@ -230,14 +244,14 @@ def initialize(Y, F_list, G_list, dynamic):
 
     # Step 2: Pick further centroids with higher probability of picking
     # one further away from the already existing ones
-    for _ in range(k-1):
+    for _ in range(k - 1):
         # Remove from list of candidates the last chosen centroid
         candidates.remove(centroids[-1])
 
         # Add to `distances` the distance between every observation and the new centroid
         for j, centroid_index in enumerate(centroids):
-            centroid = Y[:,index_mask[centroid_index]]
-            distances.append([np.sum((Y[:,index_mask[i]] - centroid)**2) for i in range(n)])
+            centroid = Y[:, index_mask[centroid_index]]
+            distances.append([np.sum((Y[:, index_mask[i]] - centroid) ** 2) for i in range(n)])
 
         # NOTE: I do this not to repeat the distance computation every step for the same
         # centroids, the (tiny) drawback is computing for every observation instead of
@@ -257,11 +271,11 @@ def initialize(Y, F_list, G_list, dynamic):
     # cluster parameters based on MLE estimation which is based purely on them.
 
     # TODO: Current ordering is assumed to be arbitrary, which is only true if all
-    # F_j and G_j are the same. When it isn't adjust all k models for all k centroids
-    # and pick the highest likelihood candidate for each model.
+    #       F_j and G_j are the same. When it isn't adjust all k models for all k
+    #       centroids and pick the highest likelihood candidate for each model.
 
     for j in range(k):
-        theta[j][:,:], _, _, _ = dlm.mle(Y[:,index_mask[centroids[j]]], F_list[j], G_list[j])
+        theta[j][:, :], _, _, _ = dlm.mle(Y[:, index_mask[centroids[j]]], F_list[j], G_list[j])
 
     # Step 4: Compute the membership parameters
 
@@ -277,7 +291,7 @@ def initialize(Y, F_list, G_list, dynamic):
 
 
 def basis_vec(i, k):
-    '''
+    """
     Returns the i-th canonical vector for the k-dimensional euclidean space.
 
     Args:
@@ -286,7 +300,7 @@ def basis_vec(i, k):
 
     Returns:
         The i-th canonical vector for the k-dimensional euclidean space
-    '''
+    """
 
     vec = np.zeros(k)
     vec[i] = 1.0

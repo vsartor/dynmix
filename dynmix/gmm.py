@@ -1,14 +1,12 @@
-'''
+"""
 This module implements static mixture estimation through the Expectation
 Maximization algorithm. It's a simple atemporal clustering technique
 included for completeness.
 
-Copyright notice:
-    Copyright (c) Victhor S. Sartório. All rights reserved. This
-    Source Code Form is subject to the terms of the Mozilla Public
-    License, v. 2.0. If a copy of the MPL was not distributed with
-    this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-'''
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+"""
 
 import numpy as np
 import numpy.random as npr
@@ -17,7 +15,7 @@ import scipy.stats as sps
 
 
 def gamma(x, theta, eta):
-    '''
+    """
     Conditional probability of X being a Normal(theta_j) weighted by eta.
 
     Args:
@@ -28,16 +26,17 @@ def gamma(x, theta, eta):
 
     Returns:
         Array with the probabilities.
-    '''
+    """
 
-    weight = np.fromiter([eta[j] * sps.multivariate_normal.pdf(x, *theta[j])
-                          for j in range(eta.size)], float)
+    weight = np.fromiter(
+        [eta[j] * sps.multivariate_normal.pdf(x, *theta[j]) for j in range(eta.size)], float
+    )
 
     return weight / weight.sum()
 
 
 def gmm(X, k, init_labels=None, numit=100, unique=False, show_it=False):
-    '''
+    """
     Estimates theta and eta based on EM algorithm.
 
     Args:
@@ -57,7 +56,7 @@ def gmm(X, k, init_labels=None, numit=100, unique=False, show_it=False):
              for the population. If unique is True, contains a the mixture
              weights for each of the observations.
         theta: The list of parameters estimated for each cluster.
-    '''
+    """
 
     n, p = X.shape
 
@@ -75,16 +74,14 @@ def gmm(X, k, init_labels=None, numit=100, unique=False, show_it=False):
 
     for l in range(numit):
         if show_it and l % show_it == 0:
-            print(f'GMM-EM {l}/{numit}')
+            print(f"GMM-EM {l}/{numit}")
 
         # E-step: calculate weights
 
         if unique:
-            gammas = np.array(list([gamma(X[i], theta, eta)
-                                    for i in range(n)]))
+            gammas = np.array(list([gamma(X[i], theta, eta) for i in range(n)]))
         else:
-            gammas = np.array(list([gamma(X[i], theta, eta[i])
-                                    for i in range(n)]))
+            gammas = np.array(list([gamma(X[i], theta, eta[i]) for i in range(n)]))
 
         # M-step: calculate new values for parameters
 

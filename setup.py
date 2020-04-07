@@ -1,15 +1,15 @@
-'''
+"""
 Setup file based on setuptools for dynmix
 
 Copyright (c) Victhor S. Sartório. All rights reserved.
 This Source Code Form is subject to the terms of the Mozilla Public
 License, v. 2.0. If a copy of the MPL was not distributed with this
 file, You can obtain one at http://mozilla.org/MPL/2.0/.
-'''
+"""
 
 
 from os import path
-from setuptools import setup
+from setuptools import setup, find_packages
 
 
 here = path.abspath(path.dirname(__file__))
@@ -19,14 +19,13 @@ with open(path.join(here, 'README.md'), encoding='utf-8') as f:
 
 setup(
     name='dynmix',
-    version='1.1.2',
-    description='Dynamix Membership Mixture Models',
+    version='2.0dev',
+    description='Dynamic Membership Mixture Models',
     long_description=long_description,
     long_description_content_type='text/markdown',
     url='https://github.com/vsartor/dynmix',
     author='Victhor S. Sartório',
     author_email='victhor@dme.ufrj.br',
-    test_suite='tests',
     classifiers=[
         'Development Status :: 1 - Planning',
         'Intended Audience :: Science/Research',
@@ -35,7 +34,7 @@ setup(
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.7',
     ],
-    keywords='mixture model bayesian statistics dynamic',
+    keywords='mixture model bayesian statistics dynamic time-series',
     packages=['dynmix'],
-    install_requires=['numpy', 'scipy', 'numba'],
+    install_requires=find_packages(),
 )

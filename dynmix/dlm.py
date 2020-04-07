@@ -1,40 +1,38 @@
-'''
+"""
 This module implements simple Dynamic Linear Model routines while
 also including routines a special case of "univariate" DLMs that
 have a varying number `n_t` of repeated observations of `y_t` at
 each time instant.
 
-Copyright notice:
-    Copyright (c) Victhor S. Sartório. All rights reserved. This
-    Source Code Form is subject to the terms of the Mozilla Public
-    License, v. 2.0. If a copy of the MPL was not distributed with
-    this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-'''
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+"""
 
 import numpy as np
 import scipy.stats as sps
 
 
 def _process_prior(Y, p, m0, C0):
-    '''
+    """
     Common function to process filtering priors.
-    '''
+    """
 
     if m0 is None:
         m0 = np.zeros(p)
-    elif type(m0) in [float, int]:
+    elif isinstance(m0, (float, int)):
         m0 = np.ones(p) * m0
 
     if C0 is None:
         C0 = np.abs(Y[0]).max() ** 2
-    elif type(C0) in [float, int]:
+    elif isinstance(C0, (float, int)):
         C0 = np.eye(p) * C0
 
     return m0, C0
 
 
 def simulate(T, F, G, V, W, theta_init=None, n=None):
-    '''
+    """
     Simulates observations for a Dynamic Linear Model.
 
     Args:
@@ -49,7 +47,7 @@ def simulate(T, F, G, V, W, theta_init=None, n=None):
     Returns:
         Y: The observations.
         theta: The states.
-    '''
+    """
 
     m = F.shape[0]
     p = F.shape[1]
@@ -58,26 +56,26 @@ def simulate(T, F, G, V, W, theta_init=None, n=None):
         theta_init = np.zeros(p)
 
     theta = np.empty((T, p))
-    Y = np.empty((T, m)) if n is None else np.empty((T, n*m))
+    Y = np.empty((T, m)) if n is None else np.empty((T, n * m))
 
     if n is None:
         theta[0] = sps.multivariate_normal.rvs(np.dot(G, theta_init), W)
         Y[0] = sps.multivariate_normal.rvs(np.dot(F, theta[0]), V)
         for t in range(1, T):
-            theta[t] = sps.multivariate_normal.rvs(np.dot(G, theta[t-1]), W)
+            theta[t] = sps.multivariate_normal.rvs(np.dot(G, theta[t - 1]), W)
             Y[t] = sps.multivariate_normal.rvs(np.dot(F, theta[t]), V)
     else:
         theta[0] = sps.multivariate_normal.rvs(np.dot(G, theta_init), W)
         Y[0] = np.hstack([sps.multivariate_normal.rvs(np.dot(F, theta[0]), V) for i in range(n)])
         for t in range(1, T):
-            theta[t] = sps.multivariate_normal.rvs(np.dot(G, theta[t-1]), W)
+            theta[t] = sps.multivariate_normal.rvs(np.dot(G, theta[t - 1]), W)
             Y[t] = np.hstack([sps.multivariate_normal.rvs(np.dot(F, theta[t]), V) for i in range(n)])
 
     return Y, theta
 
 
-def filter(Y, F, G, V, W, m0=None, C0=None):
-    '''
+def kfilter(Y, F, G, V, W, m0=None, C0=None):
+    """
     Peforms the basic Kalman filter for a Dynamic Linear Model.
 
     Args:
@@ -94,7 +92,7 @@ def filter(Y, F, G, V, W, m0=None, C0=None):
         Six arrays - the prior means and covariances, a and R, the one
         step ahead forecast means and covariances, f and R, and the
         online means and covariances, m and C.
-    '''
+    """
 
     T = Y.shape[0]
     n, p = F.shape
@@ -128,8 +126,8 @@ def filter(Y, F, G, V, W, m0=None, C0=None):
     C[0] = R[0] - np.dot(np.dot(A, Q[0]), A.T)
 
     for t in range(1, T):
-        a[t] = np.dot(G, m[t-1])
-        R[t] = np.dot(np.dot(G, C[t-1]), Gt) + W
+        a[t] = np.dot(G, m[t - 1])
+        R[t] = np.dot(np.dot(G, C[t - 1]), Gt) + W
         f[t] = np.dot(F, a[t])
         Q[t] = np.dot(np.dot(F, R[t]), Ft) + V
         e = Y[t] - f[t]
@@ -141,8 +139,8 @@ def filter(Y, F, G, V, W, m0=None, C0=None):
     return a, R, f, Q, m, C
 
 
-def filter_df(Y, F, G, V, df=0.7, m0=None, C0=None):
-    '''
+def kfilter_df(Y, F, G, V, df=0.7, m0=None, C0=None):
+    """
     Peforms the basic Kalman filter for a Dynamic Linear Model with discount
     factor modelling for the evolutional variance.
 
@@ -162,7 +160,7 @@ def filter_df(Y, F, G, V, df=0.7, m0=None, C0=None):
         m: Online means.
         C: Online covariances.
         W: Imposed values for W.
-    '''
+    """
 
     T = Y.shape[0]
     n, p = F.shape
@@ -195,10 +193,10 @@ def filter_df(Y, F, G, V, df=0.7, m0=None, C0=None):
     C[0] = R[0] - np.dot(np.dot(A, Q), A.T)
 
     for t in range(1, T):
-        a[t] = np.dot(G, m[t-1])
-        P = np.dot(np.dot(G, C[t-1]), Gt)
+        a[t] = np.dot(G, m[t - 1])
+        P = np.dot(np.dot(G, C[t - 1]), Gt)
         W[t] = P * (1 - df) / df
-        R[t] = np.dot(np.dot(G, C[t-1]), Gt) + W[t]
+        R[t] = np.dot(np.dot(G, C[t - 1]), Gt) + W[t]
         f = np.dot(F, a[t])
         Q = np.dot(np.dot(F, R[t]), Ft) + V
         e = Y[t] - f
@@ -210,8 +208,8 @@ def filter_df(Y, F, G, V, df=0.7, m0=None, C0=None):
     return a, R, m, C, W
 
 
-def filter_df_dyn(Y, F, G, V, df=0.7, m0=None, C0=None):
-    '''
+def kfilter_df_dyn(Y, F, G, V, df=0.7, m0=None, C0=None):
+    """
     Peforms the basic Kalman filter for a Dynamic Linear Model with discount
     factor modelling for the evolutional variance. This version accepts time-varying
     F and V and time-varying dimensions on Y.
@@ -231,7 +229,7 @@ def filter_df_dyn(Y, F, G, V, df=0.7, m0=None, C0=None):
         m: Online means.
         C: Online covariances.
         W: Imposed values for W.
-    '''
+    """
 
     T = len(Y)
     p = G.shape[0]
@@ -257,10 +255,10 @@ def filter_df_dyn(Y, F, G, V, df=0.7, m0=None, C0=None):
     C[0] = R[0] - np.dot(np.dot(A, Q), A.T)
 
     for t in range(1, T):
-        a[t] = np.dot(G, m[t-1])
-        P = np.dot(np.dot(G, C[t-1]), G.T)
+        a[t] = np.dot(G, m[t - 1])
+        P = np.dot(np.dot(G, C[t - 1]), G.T)
         W[t] = P * (1 - df) / df
-        R[t] = np.dot(np.dot(G, C[t-1]), G.T) + W[t]
+        R[t] = np.dot(np.dot(G, C[t - 1]), G.T) + W[t]
         f = np.dot(F[t], a[t])
         Q = np.dot(np.dot(F[t], R[t]), F[t].T) + V[t]
         e = Y[t] - f
@@ -272,8 +270,8 @@ def filter_df_dyn(Y, F, G, V, df=0.7, m0=None, C0=None):
     return a, R, m, C, W
 
 
-def multi_filter(Y, F, G, V, W, m0=None, C0=None):
-    '''
+def kfilter_multi(Y, F, G, V, W, m0=None, C0=None):
+    """
     Peforms filtering for univariate observational specifications
     considering multiple 'samples' from the observational variable
     at each time.
@@ -291,7 +289,7 @@ def multi_filter(Y, F, G, V, W, m0=None, C0=None):
     Returns:
         Four matrices - the prior means and covariances, a and R, and
         the online means and covariances, m and C.
-    '''
+    """
 
     p = F.size
     T = len(Y)
@@ -319,8 +317,8 @@ def multi_filter(Y, F, G, V, W, m0=None, C0=None):
     for t in range(1, T):
         n = Y[t].size
         FF = np.tile(F, (n, 1))
-        a[t] = np.dot(G, m[t-1])
-        R[t] = np.dot(np.dot(G, C[t-1]), Gt) + W
+        a[t] = np.dot(G, m[t - 1])
+        R[t] = np.dot(np.dot(G, C[t - 1]), Gt) + W
         f = np.dot(FF, a[t])
         Q = np.dot(np.dot(FF, R[t]), FF.T) + V * np.eye(n)
         e = Y[t] - f
@@ -332,8 +330,8 @@ def multi_filter(Y, F, G, V, W, m0=None, C0=None):
     return a, R, m, C
 
 
-def smoother(G, a, R, m, C):
-    '''
+def ksmoother(G, a, R, m, C):
+    """
     Peforms basic Kalman smoothing for a Dynamic Linear Model.
 
     Args:
@@ -345,27 +343,27 @@ def smoother(G, a, R, m, C):
 
     Returns:
         Two matrices - the posterior means and covariances, s and S.
-    '''
+    """
     T, p = m.shape
     Gt = G.T
 
     s = np.empty((T, p))
     S = np.empty((T, p, p))
 
-    s[T-1] = m[T-1]
-    S[T-1] = C[T-1]
+    s[T - 1] = m[T - 1]
+    S[T - 1] = C[T - 1]
 
-    for t in range(T-2, -1, -1):
-        Rinv = np.linalg.inv(R[t+1])
+    for t in range(T - 2, -1, -1):
+        Rinv = np.linalg.inv(R[t + 1])
         B = np.dot(np.dot(C[t], Gt), Rinv)
-        s[t] = m[t] + np.dot(B, s[t+1] - a[t+1])
-        S[t] = C[t] - np.dot(np.dot(B, R[t+1] - S[t+1]), B.T)
+        s[t] = m[t] + np.dot(B, s[t + 1] - a[t + 1])
+        S[t] = C[t] - np.dot(np.dot(B, R[t + 1] - S[t + 1]), B.T)
 
     return s, S
 
 
 def likelihood(y, theta, F, G, V, W):
-    '''
+    """
     Log-likelihood function for a general DLM.
 
     Args:
@@ -378,7 +376,7 @@ def likelihood(y, theta, F, G, V, W):
 
     Returns:
         The log-likelihood value.
-    '''
+    """
 
     T = y.shape[0]
 
@@ -389,16 +387,15 @@ def likelihood(y, theta, F, G, V, W):
     logpdf = sps.multivariate_normal.logpdf(y[0], np.dot(F, theta[0]), V)
 
     for t in range(1, T):
-        logpdf += \
-            sps.multivariate_normal.logpdf(y[t], np.dot(F, theta[t]), V) + \
-            sps.multivariate_normal.logpdf(theta[t], np.dot(G, theta[t-1]), W[t])
+        logpdf += sps.multivariate_normal.logpdf(
+            y[t], np.dot(F, theta[t]), V
+        ) + sps.multivariate_normal.logpdf(theta[t], np.dot(G, theta[t - 1]), W[t])
 
     return logpdf
 
 
-def mle(y, F, G, df=0.7, m0=None, C0=None, maxit=50, numeps=1e-10,
-        verbose=False):
-    '''
+def mle(y, F, G, df=0.7, m0=None, C0=None, maxit=50, numeps=1e-10, verbose=False):
+    """
     Obtains maximum likelihood estimates for a general DLM assuming
     discount factor for the latent state evolution and using coordinate
     descent with analytical steps.
@@ -421,7 +418,7 @@ def mle(y, F, G, df=0.7, m0=None, C0=None, maxit=50, numeps=1e-10,
         V: The estimate for the observational variance.
         W: The fixed values of W.
         converged: Boolean stating if the algorithm converged.
-    '''
+    """
 
     T = y.shape[0]
 
@@ -434,32 +431,33 @@ def mle(y, F, G, df=0.7, m0=None, C0=None, maxit=50, numeps=1e-10,
         old_theta = theta
 
         # Maximum for states is the mean for the normal
-        a, R, m, C, W = filter_df(y, F, G, V, df, m0, C0)
-        theta, _ = smoother(G, a, R, m, C)
+        a, R, m, C, W = kfilter_df(y, F, G, V, df, m0, C0)
+        theta, _ = ksmoother(G, a, R, m, C)
 
         # The observational variance estimator comes from the inverse gamma
         # distribution. We have that V | theta, y ~ IG(n, np.sum((y - theta)**2))
         # and the mode is beta / (alpha + 1)
         V = np.zeros(V.shape)
         for t in range(T):
-            V += np.diag((y[t] - np.dot(F, theta[t]))**2 / T)
+            V += np.diag((y[t] - np.dot(F, theta[t])) ** 2 / T)
 
         # Stop if convergence condition is satisfied
-        if np.mean((theta - old_theta)**2) < numeps**2:
+        if np.mean((theta - old_theta) ** 2) < numeps ** 2:
             if verbose:
-                print(f'Convergence condition reached in {it} iterations.')
+                print(f"Convergence condition reached in {it} iterations.")
             break
     else:
         if verbose:
-            print(f'Convergence condition NOT reached in {maxit} iterations.')
+            print(f"Convergence condition NOT reached in {maxit} iterations.")
         return theta, V, W, False
 
     return theta, V, W, True
 
 
-def weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
-                 numeps=1e-10, verbose=False, weighteps=1e-3):
-    '''
+def weighted_mle(
+    y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50, numeps=1e-10, verbose=False, weighteps=1e-3
+):
+    """
     Obtains weighted maximum likelihood estimates for a general DLM
     assuming a discount factor for the latent state evolution and using
     coordinate descent with analytical steps and assuming that the
@@ -483,7 +481,7 @@ def weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
         V: The estimate for the observational variance.
         W: The fixed values of W.
         converged: Boolean stating if the algorithm converged.
-    '''
+    """
 
     # Dimension of a single observation at one time point
     m = F.shape[0]
@@ -491,20 +489,20 @@ def weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
     # Number of observations
     n = y.shape[1] / m
     if int(n) != n:
-        raise ValueError('Dimension of y not multiple of dimension implied by F')
+        raise ValueError("Dimension of y not multiple of dimension implied by F")
     n = int(n)
 
     # Observation masks: associates observation index with matrix indexes
     index_mask = {i: range(i * m, (i + 1) * m) for i in range(n)}
 
     if verbose:
-        print(f'There are {n} observations each with dimension {m}.')
+        print(f"There are {n} observations each with dimension {m}.")
 
     # Process weight vector
-    if type(weights) in (int, float):
+    if isinstance(weights, (float, int)):
         weights = np.repeat(weights, n)
     elif len(weights) != n:
-        raise ValueError('Incorrect length for weight vector')
+        raise ValueError("Incorrect length for weight vector")
 
     # Time dimension
     T = y.shape[0]
@@ -514,25 +512,25 @@ def weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
 
     # IMPORTANT STEP:
     # When weights are too small it leads to numerical errors such as division by zero
-    # or very high variances (when vars are divided by the weights). To avoid this,
+    # or very high variances (when variances are divided by the weights). To avoid this,
     # then the weight is too small to have any effect on the cluster, we will just
     # remove this observation altogether from estimation.
 
     good_weight_mask = weights > weighteps
 
     if verbose:
-        print(f'{np.sum(not good_weight_mask)} observations are being dropped due to low weight.')
+        print(f"{np.sum(not good_weight_mask)} observations are being dropped due to low weight.")
 
     # Select only observations with good weights
     good_indexes = [index for i in range(n) for index in index_mask[i] if good_weight_mask[i]]
-    y = y[:,good_indexes]
+    y = y[:, good_indexes]
 
     # Update the value of `weights` and `n`
     weights = weights[good_weight_mask]
     n = len(weights)
 
     # Initialize values
-    vars = np.ones(m)
+    variances = np.ones(m)
     theta = np.ones((T, p))
 
     # Build the tiled observational matrix
@@ -543,37 +541,38 @@ def weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
         old_theta = theta
 
         # Build weighted observational matrix
-        weighted_vars = np.tile(vars, n) * np.repeat(1 / weights, m)
+        weighted_vars = np.tile(variances, n) * np.repeat(1 / weights, m)
         V = np.diag(weighted_vars)
 
         # Maximum for states is the mean for the normal
-        a, R, M, C, W = filter_df(y, FF, G, V, df, m0, C0)
-        theta, _ = smoother(G, a, R, M, C)
+        a, R, M, C, W = kfilter_df(y, FF, G, V, df, m0, C0)
+        theta, _ = ksmoother(G, a, R, M, C)
 
         # Maximum for the variances
-        vars = np.zeros(m)
+        variances = np.zeros(m)
         for i in range(n):
             mask = index_mask[i]
             for t in range(T):
-                vars += weights[i] * (y[t,mask] - np.dot(F, theta[t]))**2 / T
-        vars /= weights.sum()
+                variances += weights[i] * (y[t, mask] - np.dot(F, theta[t])) ** 2 / T
+        variances /= weights.sum()
 
         # Stop if convergence condition is satisfied
-        if np.mean((theta - old_theta)**2) < numeps**2:
+        if np.mean((theta - old_theta) ** 2) < numeps ** 2:
             if verbose:
-                print(f'Convergence condition reached in {it} iterations.')
+                print(f"Convergence condition reached in {it} iterations.")
             break
     else:
         if verbose:
-            print(f'Convergence condition NOT reached in {maxit} iterations.')
-        return theta, np.diag(vars), W, False
+            print(f"Convergence condition NOT reached in {maxit} iterations.")
+        return theta, np.diag(variances), W, False
 
-    return theta, np.diag(vars), W, True
+    return theta, np.diag(variances), W, True
 
 
-def dynamic_weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
-                         numeps=1e-10, phi_prior=(0,0)):
-    '''
+def dynamic_weighted_mle(
+    y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50, numeps=1e-10, phi_prior=(0, 0)
+):
+    """
     Obtains weighted maximum likelihood estimates for a general DLM
     assuming a discount factor for the latent state evolution and using
     coordinate descent with analytical steps and assuming that the
@@ -598,14 +597,14 @@ def dynamic_weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
         V: The estimate for the observational variance.
         W: The fixed values of W.
         converged: Boolean stating if the algorithm converged.
-    '''
+    """
 
     m, p = F.shape
     T = y.shape[0]
 
     n = y.shape[1] / m
     if int(n) != n:
-        raise ValueError('Dimension of y not multiple of dimension implied by F')
+        raise ValueError("Dimension of y not multiple of dimension implied by F")
     n = int(n)
 
     index_mask = [range(i * m, (i + 1) * m) for i in range(n)]
@@ -623,8 +622,8 @@ def dynamic_weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
     for t in range(T):
         good_weight_mask = weights[t] > 1e-3
         good_indexes = [index for i in range(n) for index in index_mask[i] if good_weight_mask[i]]
-        good_y.append(y[t,good_indexes])
-        good_weights.append(weights[t,good_weight_mask])
+        good_y.append(y[t, good_indexes])
+        good_weights.append(weights[t, good_weight_mask])
         good_n.append(len(good_weights[t]))
 
     # Initialization to arbitrary but numerically reasonable values
@@ -633,16 +632,18 @@ def dynamic_weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
 
     F_tiled = [np.tile(F, (n, 1)) for n in good_n]
 
-    for it in range(maxit):
+    for _ in range(maxit):
         old_theta = theta
 
-        weighted_variances = [np.tile(variances, good_n[t]) * np.repeat(1 / good_weights[t], m) for t in range(T)]
+        weighted_variances = [
+            np.tile(variances, good_n[t]) * np.repeat(1 / good_weights[t], m) for t in range(T)
+        ]
         V_tiled = [np.diag(weighted_var) for weighted_var in weighted_variances]
 
         # Maximum for states
 
-        a, R, M, C, W = filter_df_dyn(good_y, F_tiled, G, V_tiled, df, m0, C0)
-        theta, _ = smoother(G, a, R, M, C)
+        a, R, M, C, W = kfilter_df_dyn(good_y, F_tiled, G, V_tiled, df, m0, C0)
+        theta, _ = ksmoother(G, a, R, M, C)
 
         # Maximum for variances
 
@@ -650,7 +651,7 @@ def dynamic_weighted_mle(y, F, G, weights, df=0.7, m0=None, C0=None, maxit=50,
         for t in range(T):
             for i in range(good_n[t]):
                 mask = index_mask[i]
-                variances += good_weights[t][i] * (good_y[t][mask] - np.dot(F, theta[t]))**2 / T
+                variances += good_weights[t][i] * (good_y[t][mask] - np.dot(F, theta[t])) ** 2 / T
         variances /= weights.sum() + phi_prior[1]
 
         # Stop-condition

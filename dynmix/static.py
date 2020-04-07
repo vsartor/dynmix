@@ -1,13 +1,11 @@
-'''
+"""
 This module implements time-series mixture model for clustering using
 DLMs for each of the k clusters.
 
-Copyright notice:
-    Copyright (c) Victhor S. Sartório. All rights reserved. This
-    Source Code Form is subject to the terms of the Mozilla Public
-    License, v. 2.0. If a copy of the MPL was not distributed with
-    this file, You can obtain one at http://mozilla.org/MPL/2.0/.
-'''
+This Source Code Form is subject to the terms of the Mozilla Public
+License, v. 2.0. If a copy of the MPL was not distributed with this
+file, You can obtain one at http://mozilla.org/MPL/2.0/.
+"""
 
 import numpy as np
 import numpy.random as rng
@@ -17,7 +15,7 @@ from . import common
 
 
 def estimator(Y, F_list, G_list, numit=20, mnumit=100, numeps=1e-6):
-    '''
+    """
     Uses Expectation-Maximization to estimate static clusterization of n
     m-variate time-series, all observed throughout the same T time instants.
 
@@ -34,14 +32,14 @@ def estimator(Y, F_list, G_list, numit=20, mnumit=100, numeps=1e-6):
         theta: A list with the theta for each cluster.
         phi: A list with the phi for each cluster.
         W: A list with the W for each cluster.
-    '''
+    """
 
-    #-- Preamble
+    # -- Preamble
 
     k, _, p, _, T, _ = common.get_dimensions(Y, F_list, G_list)
     _, theta, phi, eta = common.initialize(Y, F_list, G_list, dynamic=False)
 
-    #-- Algorithm
+    # -- Algorithm
 
     # NOTE: Because W is a byproduct of the df_filter and not directly
     # estimated, it will only be saved after all estimation has finished
@@ -54,9 +52,10 @@ def estimator(Y, F_list, G_list, numit=20, mnumit=100, numeps=1e-6):
         eta = common.compute_weights(Y, F_list, G_list, theta, phi, eta)
 
         for j in range(k):
-            theta[j], V, _, _ = dlm.weighted_mle(Y, F_list[j], G_list[j], eta[:,j],
-                                                 maxit=mnumit, numeps=numeps)
-            phi[j,:] = 1 / np.diag(V)
+            theta[j], V, _, _ = dlm.weighted_mle(
+                Y, F_list[j], G_list[j], eta[:, j], maxit=mnumit, numeps=numeps
+            )
+            phi[j, :] = 1 / np.diag(V)
 
     # NOTE: Now compute the W in a last-step
 
@@ -64,17 +63,18 @@ def estimator(Y, F_list, G_list, numit=20, mnumit=100, numeps=1e-6):
 
     eta = common.compute_weights(Y, F_list, G_list, theta, phi, eta)
     for j in range(k):
-        theta[j], V, W[j], _ = dlm.weighted_mle(Y, F_list[j], G_list[j], eta[:,j],
-                                                maxit=mnumit, numeps=numeps)
-        phi[j,:] = 1 / np.diag(V)
+        theta[j], V, W[j], _ = dlm.weighted_mle(
+            Y, F_list[j], G_list[j], eta[:, j], maxit=mnumit, numeps=numeps
+        )
+        phi[j, :] = 1 / np.diag(V)
 
     return eta, theta, phi, W
 
 
 class StaticSamplerResult:
-    '''
+    """
     Holds the results from a `sampler` run from the `static` module.
-    '''
+    """
 
     def __init__(self, numit, k, m, p, n, T):
         self.k = k
@@ -90,9 +90,9 @@ class StaticSamplerResult:
         self._curr = 0
 
     def include(self, theta, phi, W, Z, eta):
-        '''
+        """
         Include samples from a new iteration into the result.
-        '''
+        """
 
         if self._curr == self._max:
             raise RuntimeError("Tried to include more samples than initially specified.")
@@ -107,12 +107,12 @@ class StaticSamplerResult:
             # with the other cluster-specific variables, the cluster dimension is
             # a list.
 
-            self.theta[j][it,:,:] = theta[j]
-            self.phi[j][it,:] = phi[j]
-            self.W[j][it,:,:,:] = W[j]
+            self.theta[j][it, :, :] = theta[j]
+            self.phi[j][it, :] = phi[j]
+            self.W[j][it, :, :, :] = W[j]
 
-        self.Z[it,:] = Z
-        self.eta[it,:,:] = eta
+        self.Z[it, :] = Z
+        self.eta[it, :, :] = eta
 
     def means(self):
         """
@@ -130,7 +130,7 @@ class StaticSamplerResult:
 
 
 def sampler(Y, F_list, G_list, numit=2000, ord_time=0):
-    '''
+    """
     Uses the Gibbs sampler to obtain samples from the posterior for static
     clusterization of n m-variate time-series, all observed throughout the
     same T time instants.
@@ -144,9 +144,9 @@ def sampler(Y, F_list, G_list, numit=2000, ord_time=0):
 
     Returns:
         A `StaticSamplerResult` object.
-    '''
+    """
 
-    #-- Preamble
+    # -- Preamble
 
     k, m, p, n, T, index_map = common.get_dimensions(Y, F_list, G_list)
     _, theta, phi, eta = common.initialize(Y, F_list, G_list, dynamic=False)
@@ -154,7 +154,7 @@ def sampler(Y, F_list, G_list, numit=2000, ord_time=0):
     chains = StaticSamplerResult(numit, k, m, p, n, T)
 
     # Make sure clusters start with correct ordering
-    order = np.argsort([theta_[ord_time,0] for theta_ in theta])
+    order = np.argsort([theta_[ord_time, 0] for theta_ in theta])
 
     theta = [theta[i] for i in order]
     phi = phi[order]
@@ -162,11 +162,11 @@ def sampler(Y, F_list, G_list, numit=2000, ord_time=0):
     # Allocate memory for W
     W = [np.empty((T, p[j], p[j])) for j in range(k)]
 
-    #-- Gibbs sampler
+    # -- Gibbs sampler
 
     for it in range(numit):
         if it % 200 == 0:
-            print(f'dynmix.static.sampler [{it}|{numit}]')
+            print(f"dynmix.static.sampler [{it}|{numit}]")
 
         # Sample for Z, eta
         weights = common.compute_weights(Y, F_list, G_list, theta, phi, eta)
@@ -181,26 +181,28 @@ def sampler(Y, F_list, G_list, numit=2000, ord_time=0):
         # Sample for theta, W, phi
         for j in range(k):
             member_indexes = [idx for i in range(n) for idx in index_map[i] if Z[i] == j]
-            member_Y = Y[:,member_indexes]
+            member_Y = Y[:, member_indexes]
             member_n = np.sum(Z == j)
 
             G = G_list[j]
             F = np.tile(F_list[j], (member_n, 1))
             V = np.diag(np.tile(1.0 / phi[j], member_n))
 
-            a, R, M, C, W[j][:,:,:] = dlm.filter_df(member_Y, F, G, V)
-            M, C = dlm.smoother(G, a, R, M, C)
+            a, R, M, C, W[j][:, :, :] = dlm.kfilter_df(member_Y, F, G, V)
+            M, C = dlm.ksmoother(G, a, R, M, C)
 
             obs_error = np.ones(m)
             for t in range(T):
                 theta[j][t] = rng.multivariate_normal(M[t], C[t])
-                obs_error += ((np.dot(F, theta[j][t]) - member_Y[t])**2).reshape((member_n, m)).sum(axis=0)
+                obs_error += (
+                    ((np.dot(F, theta[j][t]) - member_Y[t]) ** 2).reshape((member_n, m)).sum(axis=0)
+                )
 
             phi[j] = rng.gamma(member_n * T + 1, 1 / obs_error)
 
         # Impose ordering restriction
 
-        order = np.argsort([theta_[ord_time,0] for theta_ in theta])
+        order = np.argsort([theta_[ord_time, 0] for theta_ in theta])
 
         theta = [theta[i] for i in order]
         phi = phi[order]
