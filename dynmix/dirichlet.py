@@ -15,7 +15,7 @@ from numba import njit
 
 
 @njit
-def forward_filter(Y, delta, c0):
+def forward_filter(Y: np.ndarray, delta: float, c0: np.ndarray) -> np.ndarray:
     """
     Performs forward filtering algorithm for a Dirichlet process as
     proposed in Fonseca & Ferreira (2017).
@@ -40,7 +40,7 @@ def forward_filter(Y, delta, c0):
     return c
 
 
-def backwards_sampler(c, delta):
+def backwards_sampler(c: np.ndarray, delta: float) -> np.ndarray:
     """
     Performs backwards sampling algorithm for a Dirichlet process as
     proposed in Fonseca & Ferreira (2017).
@@ -67,9 +67,20 @@ def backwards_sampler(c, delta):
     return eta
 
 
-def backwards_mc_estimator(c: np.ndarray, delta: float, resolution: int = 10, M: int = 50):
+def backwards_mc_estimator(c: np.ndarray, delta: float, resolution: int = 10, M: int = 50) -> np.ndarray:
     """
-    Estimates the mode through Monte-Carlo simulation.
+    Analogous to backwards sampling, but performs estimation instead by picking the mode.
+    Since the mode cannot be found analytically, we simulate various observations and bin
+    them into a discretization. The mode is picked from this discretization.
+
+    Args:
+        c:
+        delta:
+        resolution:
+        M:
+
+    Returns:
+
     """
 
     T, k = c.shape
@@ -86,7 +97,7 @@ def backwards_mc_estimator(c: np.ndarray, delta: float, resolution: int = 10, M:
         mc_sample = backwards_sampler(c, delta)
         for t in range(T):
             for j in range(k - 1):
-                index = np.argmax(np.logical_and(grid_lo < mc_sample[t, j], mc_sample[t, j] < grid_hi))
+                index = np.argmax((grid_lo < mc_sample[t, j]) & (mc_sample[t, j] < grid_hi))
                 bin_counts[t, j, index] += 1
 
     # Get the bins with the highest count
@@ -239,7 +250,7 @@ def backwards_estimator(c: np.ndarray, delta: float) -> np.ndarray:
     return eta
 
 
-def delta_marginal(delta: float, Z: np.array, k: int) -> float:
+def delta_marginal(delta: np.ndarray, Z: np.array, k: int) -> float:
     """
     The marginal of delta given the multinomial observations. Specifically crafted
     for the case of Z_t | eta_t ~ Multinom(1, eta_t). The prior is hard-coded

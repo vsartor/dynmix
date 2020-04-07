@@ -44,7 +44,7 @@ def estimator(Y, spec, numit=10, mnumit=100, numeps=1e-6, M=200, phi_priors=None
 
     s_eta, _, _, _ = independent.estimator(Y, F_list, G_list, numit=10)
     delta = np.clip(np.max(np.mean(s_eta, axis=0), axis=1), 0.05, 0.95)
-    delta[delta > 0.5 & delta < 0.9] = 0.5
+    delta[(delta > 0.5) & (delta < 0.9)] = 0.5
 
     c0 = np.ones(k) * 0.1
     mc_estimates = np.empty((T, k))
@@ -188,7 +188,7 @@ def sampler(Y, spec=None, model_delta=False, num_samples=2000):
 
     s_eta, _, _, _ = independent.estimator(Y, F_list, G_list, numit=10)
     delta = np.clip(np.max(np.mean(s_eta, axis=0), axis=1), 0.05, 0.95)
-    delta[delta > 0.5 & delta < 0.9] = 0.5
+    delta[(delta > 0.5) & (delta < 0.9)] = 0.5
 
     # First thing that happens is generating Z, so it doesn't have to be explicitly initialized.
     Z = np.empty((T, n, k))
