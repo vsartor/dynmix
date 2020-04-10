@@ -215,7 +215,17 @@ def sampler(Y, model_specification, model_delta=False, num_samples=2000):
                     [f(Y[t, i], np.dot(F_list[j], theta[j][t]), sigma[j]) for j in range(k)]
                 )
                 weights = eta[t, i] * densities
-                Z[t, i] = rng.multinomial(1, weights / weights.sum())
+
+                if np.all(weights == 0):
+                    # Densities were 0. Find the value of j that is closest to Y and set
+                    # that as 1.
+                    mus = [np.dot(F_list[j], theta[j][t]) for j in range(k)]
+                    diffs = [np.sum(Y[t, i] - mu) for mu in mus]
+                    Z[t, i] = 0
+                    Z[t, i, np.argmin(diffs)] = 1
+                else:
+                    weights /= weights.sum()
+                    Z[t, i] = rng.multinomial(1, weights / weights.sum())
 
         # -- Sampling for the Dirichlet model discount factor
 
@@ -242,7 +252,7 @@ def sampler(Y, model_specification, model_delta=False, num_samples=2000):
                 Y_j.append(Y[t, included_observations_real_indexes])
 
             # Perform appropriately sized tiling operations
-            n_j = [len(y) for y in Y_j]
+            n_j = [int(len(y) / m) for y in Y_j]
             F_j = [np.tile(F_list[j], (n, 1)) for n in n_j]
             V_j = [np.diag(np.tile(1.0 / phi[j], n)) for n in n_j]
 
